@@ -2,7 +2,7 @@
 Admin Router — Moderation panel endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -48,6 +48,20 @@ async def get_pending_reports(
         .order_by(Ticket.created_at.desc())
         .all()
     )
+    return [_ticket_to_response(t, db) for t in tickets]
+
+
+@router.get("/reports", response_model=List[ReportResponse])
+async def get_all_reports(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_admin),
+):
+    """Get all reports with optional status filter."""
+    query = db.query(Ticket)
+    if status:
+        query = query.filter(Ticket.status == status.upper())
+    tickets = query.order_by(Ticket.created_at.desc()).limit(100).all()
     return [_ticket_to_response(t, db) for t in tickets]
 
 
@@ -98,6 +112,34 @@ async def reject_report(
         new_status="REJECTED",
         actor="admin",
         notes={"action": "moderation_reject", "reason": body.reason},
+    )
+    db.add(action)
+    db.commit()
+    return _ticket_to_response(ticket, db)
+
+
+@router.post("/reports/{ticket_id}/resolve", response_model=ReportResponse)
+async def resolve_report(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_admin),
+):
+    """Mark a report as resolved (admin action)."""
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    old_status = ticket.status
+    ticket.status = "RESOLVED"
+    ticket.resolved_at = datetime.utcnow()
+    action = ActionLog(
+        action_log_id=str(uuid.uuid4()),
+        ticket_id=ticket_id,
+        action_type="STATUS_CHANGE",
+        old_status=old_status,
+        new_status="RESOLVED",
+        actor="admin",
+        notes={"action": "admin_resolve"},
     )
     db.add(action)
     db.commit()

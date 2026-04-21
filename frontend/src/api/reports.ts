@@ -37,3 +37,8 @@ export async function upvoteReport(
   const { data } = await api.post(`/api/reports/${id}/upvote`, { fingerprint });
   return data;
 }
+
+export async function markReportResolved(id: string): Promise<Report> {
+  const { data } = await api.post(`/api/reports/${id}/mark-resolved`);
+  return data;
+}

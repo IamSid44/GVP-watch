@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { Map, List, Loader2 } from "lucide-react";
 import MapView from "../components/map/MapView";
+import ReportPopupCard from "../components/map/ReportPopupCard";
 import ReportCard from "../components/reports/ReportCard";
-import { fetchMapReports } from "../api/reports";
-import { fetchReports } from "../api/reports";
+import { fetchMapReports, fetchReports } from "../api/reports";
 import { fetchWardBoundaries } from "../api/wards";
 
 export default function HomePage() {
-  const navigate = useNavigate();
   const [view, setView] = useState<"map" | "list">("map");
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   const { data: mapReports = [], isLoading: mapLoading } = useQuery({
     queryKey: ["reports", "map"],
@@ -61,7 +60,7 @@ export default function HomePage() {
       </div>
 
       {view === "map" ? (
-        <div className="flex-1 min-h-[calc(100vh-3.5rem)]">
+        <div className="relative" style={{ height: "calc(100vh - 56px)" }}>
           {mapLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 size={32} className="animate-spin text-gray-400" />
@@ -70,7 +69,14 @@ export default function HomePage() {
             <MapView
               reports={mapReports}
               wardBoundaries={boundaries}
-              onMarkerClick={(id) => navigate(`/report/${id}`)}
+              onMarkerClick={(id) => setSelectedReportId(id)}
+            />
+          )}
+          {/* Popup card overlay */}
+          {selectedReportId && (
+            <ReportPopupCard
+              ticketId={selectedReportId}
+              onClose={() => setSelectedReportId(null)}
             />
           )}
         </div>

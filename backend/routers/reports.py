@@ -147,6 +147,32 @@ async def get_report(ticket_id: str, db: Session = Depends(get_db)):
     return _ticket_to_response(ticket, db)
 
 
+@router.post("/{ticket_id}/mark-resolved", response_model=ReportResponse)
+async def mark_report_resolved(ticket_id: str, db: Session = Depends(get_db)):
+    """Public endpoint to mark a report as cleaned up / resolved."""
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if ticket.status == "RESOLVED":
+        return _ticket_to_response(ticket, db)
+
+    old_status = ticket.status
+    ticket.status = "RESOLVED"
+    ticket.resolved_at = datetime.utcnow()
+    action = ActionLog(
+        action_log_id=str(uuid.uuid4()),
+        ticket_id=ticket_id,
+        action_type="STATUS_CHANGE",
+        old_status=old_status,
+        new_status="RESOLVED",
+        actor="citizen",
+        notes={"action": "mark_resolved_web"},
+    )
+    db.add(action)
+    db.commit()
+    return _ticket_to_response(ticket, db)
+
+
 def _find_nearest_ward(db: Session, lat: float, lng: float) -> Optional[Ward]:
     """Find the nearest ward by center point distance."""
     wards = db.query(Ward).filter(Ward.center_lat.isnot(None)).all()
