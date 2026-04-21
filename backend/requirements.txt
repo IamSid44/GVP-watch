@@ -13,6 +13,9 @@ alembic==1.12.1
 # HTTP Client
 httpx==0.25.2
 
+# File uploads
+python-multipart==0.0.6
+
 # Job Scheduling
 apscheduler==3.10.4
 

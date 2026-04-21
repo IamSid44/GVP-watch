@@ -70,3 +70,17 @@ Thumbs.db
 .mypy_cache
 .dmypy.json
 dmypy.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Ward GeoJSON cache (large file)
+backend/data/ghmc-wards.geojson
+
+# Claude
+.claude/

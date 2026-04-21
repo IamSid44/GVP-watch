@@ -21,12 +21,16 @@ Meta triggers processing:
 
 from fastapi import FastAPI, Request, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
 import json
+import os
 
-from config import VERIFY_TOKEN
+from config import VERIFY_TOKEN, FRONTEND_URL, UPLOAD_DIR
 from database import init_db, get_db, Ticket, MessageLog, ActionLog
 from logger_config import get_logger
 from webhook_handler import parse_incoming_webhook
@@ -40,6 +44,7 @@ from utils import (
     extract_text_from_message, extract_location_from_message,
     extract_media_from_message, extract_button_reply_from_message, generate_uuid
 )
+from routers import reports, analytics, wards, upvotes, admin, exports
 
 logger = get_logger(__name__)
 
@@ -49,11 +54,34 @@ logger = get_logger(__name__)
 
 app = FastAPI(
     title="GVP Watch Backend",
-    description="WhatsApp-based Solid Waste Management Grievance System",
-    version="1.0.0",
+    description="Solid Waste Management Grievance System — Serilingampally, Hyderabad",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# CORS middleware for frontend dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register API routers
+app.include_router(reports.router)
+app.include_router(analytics.router)
+app.include_router(wards.router)
+app.include_router(upvotes.router)
+app.include_router(admin.router)
+app.include_router(exports.router)
+
+# Serve uploaded photos
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+# NOTE: Frontend static files are mounted AFTER all routes in startup event
+# to avoid catching API routes. See startup_event() below.
 
 
 @app.on_event("startup")
@@ -76,6 +104,12 @@ async def startup_event():
         logger.info("Reminder service started")
     except Exception as e:
         logger.error(f"Failed to start reminder service: {str(e)}")
+
+    # Mount frontend static files last so they don't shadow API routes
+    frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if frontend_dist.exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="frontend-assets")
+        logger.info(f"Serving frontend from {frontend_dist}")
 
     logger.info("Startup complete!")
 
@@ -483,13 +517,17 @@ async def get_ticket_logs(
 
 @app.get("/", response_class=JSONResponse)
 async def root():
-    """Root endpoint with API information"""
+    """Root endpoint — serves frontend index.html if built, otherwise API info"""
+    frontend_index = Path(__file__).parent.parent / "frontend" / "dist" / "index.html"
+    if frontend_index.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(str(frontend_index))
     return {
         "name": "GVP Watch Backend",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
         "documentation": "/docs",
-        "webhook": "/webhook"
+        "frontend": "not built — run 'npm run build' in frontend/",
     }
 
 

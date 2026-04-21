@@ -123,25 +123,25 @@ class User(Base):
 class Ward(Base):
     """
     Ward model for geographic/administrative divisions.
-
-    Fields:
-    - ward_id: UUID primary key
-    - ward_name: Name of the ward
-    - zone: Optional zone grouping
-    - description: Optional description
-    - created_at: Timestamp
+    Extended with GHMC ward numbers, circle info, and GeoJSON boundaries.
     """
     __tablename__ = "wards"
 
     ward_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ward_name = Column(String(100), nullable=False, unique=True)
+    ward_number = Column(Integer, nullable=True, index=True)
+    circle = Column(String(100))
     zone = Column(String(100))
     description = Column(Text)
+    boundary_geojson = Column(JSON)
+    center_lat = Column(Float)
+    center_lng = Column(Float)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Relationships
     tickets = relationship("Ticket", back_populates="ward")
     officers = relationship("Officer", secondary="ward_officer_mapping", back_populates="wards")
+    representatives = relationship("Representative", back_populates="ward")
 
 
 class Officer(Base):
@@ -222,6 +222,15 @@ class Ticket(Base):
 
     # State tracking
     status = Column(String(20), nullable=False, default=TicketStatusEnum.INITIATED)
+
+    # Web submission fields
+    description = Column(Text)
+    source = Column(String(10), nullable=False, default="WHATSAPP")  # WHATSAPP or WEB
+    upvote_count = Column(Integer, nullable=False, default=0)
+    moderation_status = Column(String(20), nullable=False, default="APPROVED")
+    address = Column(Text)
+    category = Column(String(50))
+    reporter_name = Column(String(100))
 
     # Timestamps for timeline tracking
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -321,6 +330,40 @@ class ActionLog(Base):
         Index("idx_actions_ticket_created", "ticket_id", "created_at"),
         Index("idx_actions_action_type", "action_type", "created_at"),
     )
+
+
+class Upvote(Base):
+    """Upvote on a report (fingerprint-based, one per device)."""
+    __tablename__ = "upvotes"
+
+    upvote_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    ticket_id = Column(String(36), ForeignKey("tickets.ticket_id"), nullable=False, index=True)
+    fingerprint = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    ticket = relationship("Ticket")
+
+    __table_args__ = (
+        UniqueConstraint("ticket_id", "fingerprint", name="uq_upvote_ticket_fingerprint"),
+    )
+
+
+class Representative(Base):
+    """Political/administrative representative linked to a ward or zone."""
+    __tablename__ = "representatives"
+
+    rep_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    ward_id = Column(String(36), ForeignKey("wards.ward_id"), nullable=True, index=True)
+    name = Column(String(100), nullable=False)
+    title = Column(String(100), nullable=False)
+    level = Column(String(20), nullable=False)  # WARD, CIRCLE, ZONE, CITY
+    phone = Column(String(20))
+    email = Column(String(100))
+    party = Column(String(50))
+    photo_url = Column(String(500))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    ward = relationship("Ward", back_populates="representatives")
 
 
 # ============================================================================

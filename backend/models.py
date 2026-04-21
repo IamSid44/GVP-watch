@@ -326,6 +326,146 @@ class ErrorResponse(BaseModel):
 
 
 # ============================================================================
+# WEB FRONTEND MODELS
+# ============================================================================
+
+class WebReportCreate(BaseModel):
+    """Schema for submitting a report via the web frontend."""
+    latitude: float
+    longitude: float
+    severity: str = "MEDIUM"
+    category: str = "garbage_on_roads"
+    description: Optional[str] = None
+    reporter_name: Optional[str] = None
+    address: Optional[str] = None
+
+
+class ReportResponse(BaseModel):
+    """Full report response for the web frontend."""
+    ticket_id: str
+    citizen_phone: Optional[str] = None
+    officer_phone: Optional[str] = None
+    ward_id: Optional[str] = None
+    ward_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    photo_url: Optional[str] = None
+    severity_score: Optional[str] = None
+    status: str
+    description: Optional[str] = None
+    source: str = "WHATSAPP"
+    upvote_count: int = 0
+    moderation_status: str = "APPROVED"
+    address: Optional[str] = None
+    category: Optional[str] = None
+    reporter_name: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReportMapItem(BaseModel):
+    """Lightweight report data for map markers."""
+    ticket_id: str
+    latitude: float
+    longitude: float
+    severity_score: Optional[str] = None
+    status: str
+    category: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AnalyticsSummary(BaseModel):
+    """Summary analytics for the dashboard."""
+    total_reports: int
+    open_reports: int
+    resolved_reports: int
+    pending_reports: int
+    unresponsive_reports: int
+    resolution_rate: float
+    avg_resolution_hours: Optional[float] = None
+
+
+class DailyTrend(BaseModel):
+    """Reports per day for trend charts."""
+    date: str
+    count: int
+
+
+class WardStats(BaseModel):
+    """Report stats grouped by ward."""
+    ward_id: str
+    ward_name: str
+    ward_number: Optional[int] = None
+    total: int
+    open: int
+    resolved: int
+
+
+class SeverityStats(BaseModel):
+    """Report stats grouped by severity."""
+    severity: str
+    count: int
+
+
+class StatusStats(BaseModel):
+    """Report stats grouped by status."""
+    status: str
+    count: int
+
+
+class WardResponse(BaseModel):
+    """Ward detail response."""
+    ward_id: str
+    ward_name: str
+    ward_number: Optional[int] = None
+    circle: Optional[str] = None
+    zone: Optional[str] = None
+    center_lat: Optional[float] = None
+    center_lng: Optional[float] = None
+    total_reports: int = 0
+    open_reports: int = 0
+    resolved_reports: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class RepresentativeResponse(BaseModel):
+    """Representative response."""
+    rep_id: str
+    name: str
+    title: str
+    level: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    party: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UpvoteRequest(BaseModel):
+    """Upvote request body."""
+    fingerprint: str
+
+
+class AdminLoginRequest(BaseModel):
+    """Admin login request."""
+    key: str
+
+
+class AdminActionRequest(BaseModel):
+    """Admin moderation action."""
+    reason: Optional[str] = None
+
+
+# ============================================================================
 # VALIDATORS
 # ============================================================================
 

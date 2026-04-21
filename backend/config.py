@@ -107,6 +107,31 @@ LATITUDE_MIN, LATITUDE_MAX = -90.0, 90.0
 LONGITUDE_MIN, LONGITUDE_MAX = -180.0, 180.0
 
 # ============================================================================
+# WEB FRONTEND CONFIGURATION
+# ============================================================================
+ADMIN_KEY = os.getenv("ADMIN_KEY", "gvp-admin-2024")
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# Map defaults (Serilingampally, Hyderabad)
+MAP_CENTER_LAT = 17.4931
+MAP_CENTER_LNG = 78.3020
+MAP_DEFAULT_ZOOM = 13
+
+# ============================================================================
+# COMPLAINT CATEGORIES (matching GHMC SWM)
+# ============================================================================
+COMPLAINT_CATEGORIES = [
+    "garbage_on_roads",
+    "overflowing_bins",
+    "construction_debris",
+    "drain_blockage",
+    "green_waste",
+    "other",
+]
+
+# ============================================================================
 # DEBUG MODE
 # ============================================================================
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
