@@ -85,9 +85,34 @@ class MessageDirectionEnum(str, PyEnum):
     OUTGOING = "OUTGOING"
 
 
+class SessionStateEnum(str, PyEnum):
+    """Session state for the chat planner"""
+    SELECTING_LANGUAGE = "SELECTING_LANGUAGE"
+    MAIN_MENU = "MAIN_MENU"
+    AWAITING_TRACK_ID = "AWAITING_TRACK_ID"
+    AWAITING_PHOTO = "AWAITING_PHOTO"
+    AWAITING_LOCATION = "AWAITING_LOCATION"
+    AWAITING_SEVERITY = "AWAITING_SEVERITY"
+    AWAITING_TYPE = "AWAITING_TYPE"
+
+
 # ============================================================================
 # MODELS
 # ============================================================================
+
+class UserSession(Base):
+    """
+    Session model to track conversation state.
+    """
+    __tablename__ = "user_sessions"
+
+    phone = Column(String(20), primary_key=True)
+    language = Column(String(10), default="en")
+    current_state = Column(String(30), default=SessionStateEnum.SELECTING_LANGUAGE)
+    temp_data = Column(JSON, default=dict)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 
 class User(Base):
     """

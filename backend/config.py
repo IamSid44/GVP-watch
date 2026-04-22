@@ -32,7 +32,7 @@ BUSINESS_ACCOUNT_ID = os.getenv("BUSINESS_ACCOUNT_ID", "")
 OFFICER_PHONE_DEFAULT = os.getenv("OFFICER_PHONE_DEFAULT", "")
 
 # Meta WhatsApp Cloud API endpoint
-WHATSAPP_API_URL = "https://graph.instagram.com/v18.0/me/messages"
+WHATSAPP_API_URL = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 WHATSAPP_UPLOAD_API_URL = "https://graph.instagram.com/v18.0/me/media"
 
 # ============================================================================

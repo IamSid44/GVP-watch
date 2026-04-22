@@ -25,6 +25,8 @@ from database import (
     TicketStatusEnum,
     User,
     Ward,
+    UserSession,
+    SessionStateEnum,
 )
 from logger_config import get_logger, log_ticket_action
 from utils import analyze_image, generate_uuid, normalize_phone
@@ -154,6 +156,192 @@ class TicketService:
             if isinstance(action.notes, dict) and action.notes.get("stage") == stage:
                 return True
         return False
+
+    def process_user_input(self, sender_phone: str, event: dict) -> bool:
+        try:
+            sender_phone = normalize_phone(sender_phone)
+        except ValueError as exc:
+            logger.error(f"Invalid phone: {sender_phone} | Error: {exc}")
+            return False
+
+        text_body = event.get('content', '').strip().lower() if event.get('message_type') == 'text' else ''
+        session = self.db.query(UserSession).filter(UserSession.phone == sender_phone).first()
+
+        if text_body in ['hi', 'hello', 'hey', 'start']:
+            if session:
+                self.db.delete(session)
+                self._commit()
+            session = None
+
+        if not session:
+            session = UserSession(phone=sender_phone, current_state=SessionStateEnum.SELECTING_LANGUAGE, temp_data={})
+            self.db.add(session)
+            self._commit()
+            
+            self._send_buttons(
+                sender_phone,
+                "Welcome to GVP Watch! Please select your language:",
+                [
+                    {"id": "lang_en", "title": "English"},
+                    {"id": "lang_te", "title": "Telugu"},
+                    {"id": "lang_hi", "title": "Hindi"}
+                ],
+                header_text="Language"
+            )
+            return True
+
+        message_type = event.get("message_type")
+        state = session.current_state
+
+        if state == SessionStateEnum.SELECTING_LANGUAGE:
+            if message_type == "interactive" and event.get("button_reply") in ["lang_en", "lang_te", "lang_hi"]:
+                session.language = event.get("button_reply").replace("lang_", "")
+                session.current_state = SessionStateEnum.MAIN_MENU
+                self._commit()
+                self._send_buttons(
+                    sender_phone,
+                    "Please select an option below:",
+                    [
+                        {"id": "menu_report", "title": "Report GVP"},
+                        {"id": "menu_track", "title": "Track Ticket"},
+                        {"id": "menu_website", "title": "Open Website"}
+                    ],
+                    header_text="Main Menu"
+                )
+            else:
+                self._send_buttons(
+                    sender_phone,
+                    "Welcome to GVP Watch! Please select your language:",
+                    [
+                        {"id": "lang_en", "title": "English"},
+                        {"id": "lang_te", "title": "Telugu"},
+                        {"id": "lang_hi", "title": "Hindi"}
+                    ],
+                    header_text="Language"
+                )
+
+        elif state == SessionStateEnum.MAIN_MENU:
+            if message_type == "interactive":
+                btn_id = event.get("button_reply")
+                if btn_id == "menu_report":
+                    session.current_state = SessionStateEnum.AWAITING_PHOTO
+                    self._commit()
+                    self._send_text(sender_phone, "Please upload a photo of the garbage/waste.")
+                elif btn_id == "menu_track":
+                    session.current_state = SessionStateEnum.AWAITING_TRACK_ID
+                    self._commit()
+                    self._send_text(sender_phone, "Please enter your Ticket ID to track its status.")
+                elif btn_id == "menu_website":
+                    self._send_text(sender_phone, "Visit our website for more information: https://gvpwatch.example.com\n\nThank you!")
+                    self.db.delete(session)
+                    self._commit()
+            else:
+                self._send_buttons(
+                    sender_phone,
+                    "Please select an option below:",
+                    [
+                        {"id": "menu_report", "title": "Report GVP"},
+                        {"id": "menu_track", "title": "Track Ticket"},
+                        {"id": "menu_website", "title": "Open Website"}
+                    ],
+                    header_text="Main Menu"
+                )
+
+        elif state == SessionStateEnum.AWAITING_TRACK_ID:
+            if message_type == "text":
+                ticket_id = event.get("content", "").strip()
+                ticket = self.db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+                if ticket:
+                    self._send_text(sender_phone, f"Ticket: {ticket.ticket_id}\nStatus: {ticket.status}\nSeverity: {ticket.severity_score}\nLocation: {ticket.latitude}, {ticket.longitude}")
+                else:
+                    self._send_text(sender_phone, "Ticket not found. Please check the ID and try again, or type 'Hi' to restart.")
+                self.db.delete(session)
+                self._commit()
+
+        elif state == SessionStateEnum.AWAITING_PHOTO:
+            if message_type == "image":
+                tmp = session.temp_data.copy() if session.temp_data else {}
+                tmp["photo_id"] = event.get("media", {}).get("id")
+                tmp["photo_url"] = event.get("media", {}).get("url")
+                session.temp_data = tmp
+                session.current_state = SessionStateEnum.AWAITING_LOCATION
+                self._commit()
+                self._send_text(sender_phone, "Photo received! Now, please send a location pin.")
+            else:
+                self._send_text(sender_phone, "Please upload an image/photo of the waste.")
+
+        elif state == SessionStateEnum.AWAITING_LOCATION:
+            if message_type == "location":
+                loc = event.get("location", {})
+                tmp = session.temp_data.copy() if session.temp_data else {}
+                tmp["latitude"] = loc.get("latitude")
+                tmp["longitude"] = loc.get("longitude")
+                session.temp_data = tmp
+                session.current_state = SessionStateEnum.AWAITING_SEVERITY
+                self._commit()
+                self._send_buttons(
+                    sender_phone,
+                    "How severe is this issue?",
+                    [
+                        {"id": "sev_low", "title": "Low"},
+                        {"id": "sev_medium", "title": "Medium"},
+                        {"id": "sev_high", "title": "High"}
+                    ]
+                )
+            else:
+                self._send_text(sender_phone, "Please send a location pin.")
+
+        elif state == SessionStateEnum.AWAITING_SEVERITY:
+            if message_type == "interactive" and event.get("button_reply") in ["sev_low", "sev_medium", "sev_high"]:
+                tmp = session.temp_data.copy() if session.temp_data else {}
+                tmp["severity"] = event.get("button_reply").replace("sev_", "").upper()
+                session.temp_data = tmp
+                session.current_state = SessionStateEnum.AWAITING_TYPE
+                self._commit()
+                self._send_text(sender_phone, "Great. Finally, please type any additional info or the type of waste.")
+            else:
+                self._send_buttons(
+                    sender_phone,
+                    "Please select the severity:",
+                    [
+                        {"id": "sev_low", "title": "Low"},
+                        {"id": "sev_medium", "title": "Medium"},
+                        {"id": "sev_high", "title": "High"}
+                    ]
+                )
+
+        elif state == SessionStateEnum.AWAITING_TYPE:
+            if message_type == "text":
+                tmp = session.temp_data.copy() if session.temp_data else {}
+                tmp["info"] = event.get("content", "").strip()
+                
+                citizen_user = self.db.query(User).filter(User.phone == sender_phone).first()
+                if not citizen_user:
+                    citizen_user = User(user_id=generate_uuid(), phone=sender_phone, role=UserRoleEnum.CITIZEN)
+                    self.db.add(citizen_user)
+
+                ticket_id = "TKT-" + generate_uuid()[:8].upper()
+                new_ticket = Ticket(
+                    ticket_id=ticket_id,
+                    citizen_phone=sender_phone,
+                    status=TicketStatusEnum.OPEN,
+                    severity_score=tmp.get("severity"),
+                    latitude=tmp.get("latitude"),
+                    longitude=tmp.get("longitude"),
+                    photo_url=tmp.get("photo_url") or tmp.get("photo_id"),
+                    created_at=datetime.utcnow(),
+                    photo_received_at=datetime.utcnow()
+                )
+                self.db.add(new_ticket)
+                self._commit()
+                
+                self._send_text(sender_phone, f"Thank you! Your report has been submitted.\nYour ticket ID is: {ticket_id}\nWe will review it shortly.")
+                
+                self.db.delete(session)
+                self._commit()
+
+        return True
+
 
     def handle_citizen_initial_message(self, citizen_phone: str) -> bool:
         try:

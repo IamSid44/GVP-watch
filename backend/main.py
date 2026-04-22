@@ -282,70 +282,19 @@ async def _handle_incoming_message(event: dict, ticket_service: TicketService, d
     # Route to handler based on message type
     if message_type == "text":
         text_body = event.get("content", "").lower().strip()
-
-        # Check for specific keywords
-        if text_body == "hi" or text_body == "hello":
-            ticket_service.handle_citizen_initial_message(sender_phone)
-
-        elif text_body == "report" or text_body == "report_gvp":
-            # Citizen clicked "Report GVP" button
-            ticket_service.start_citizen_report(sender_phone)
-
-        elif "not resolved" in text_body or "resolved" in text_body:
+        if "not resolved" in text_body or "resolved" in text_body:
             # Officer responding with resolution status
             # Extract ticket ID from message
             ticket_id = _extract_ticket_id_from_text(text_body)
             if ticket_id:
                 action = "not_resolved" if "not resolved" in text_body else "resolved"
                 ticket_service.handle_officer_response(sender_phone, ticket_id, action)
+                return
             else:
                 logger.warning(f"Could not extract ticket ID from officer response: {text_body}")
 
-        else:
-            logger.debug(f"Unrecognized text message: {text_body}")
-
-    elif message_type == "location":
-        # Citizen sent location
-        location = event.get("location")
-        if location:
-            ticket_service.handle_photo_and_location(
-                sender_phone,
-                location=location
-            )
-
-    elif message_type == "image":
-        # Citizen sent photo
-        media = event.get("media", {})
-        photo_id = media.get("id")
-        photo_url = media.get("url")
-
-        ticket_service.handle_photo_and_location(
-            sender_phone,
-            has_photo=True,
-            photo_url=photo_url,
-            photo_id=photo_id
-        )
-
-    elif message_type == "interactive":
-        # Citizen clicked a button
-        button_reply = event.get("button_reply")
-
-        if button_reply == "report_gvp":
-            # Ask for photo and location
-            # First, move ticket to AWAITING_PHOTO
-            ticket_service.start_citizen_report(sender_phone)
-
-        elif button_reply in ["confirmed", "not_resolved"]:
-            # Citizen verification response
-            ticket_id = _get_citizen_pending_ticket(sender_phone, db)
-            if ticket_id:
-                verified = button_reply == "confirmed"
-                ticket_service.handle_citizen_verification(
-                    sender_phone, ticket_id, verified
-                )
-
-        else:
-            logger.debug(f"Unknown button reply: {button_reply}")
+    # Fallback all other things to process_user_input
+    ticket_service.process_user_input(sender_phone, event)
 
 
 async def _handle_message_status(event: dict, db: Session):
