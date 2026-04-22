@@ -12,8 +12,15 @@ export async function fetchWard(id: string): Promise<Ward> {
 }
 
 export async function fetchWardBoundaries(): Promise<GeoJSON.FeatureCollection> {
-  const { data } = await api.get("/api/wards/boundaries");
-  return data;
+  try {
+    const { data } = await api.get("/api/wards/boundaries");
+    if (data?.features?.length > 0) return data;
+  } catch {
+    // fall through to local file
+  }
+  // Fallback: load the bundled GeoJSON from the public folder
+  const res = await fetch("/ghmc_wards.geojson");
+  return res.json();
 }
 
 export async function fetchWardRepresentatives(

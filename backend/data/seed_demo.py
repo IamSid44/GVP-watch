@@ -1,11 +1,14 @@
 """
-Comprehensive demo seed: 50 reports across Serilingampally zone (wards 104-110).
+Comprehensive demo seed: 250 reports within wards 104, 105, 106, 111.
 
-- Severity distribution: ~30% HIGH, ~40% MEDIUM, ~30% LOW
-- Status mix: OPEN, PENDING_VERIFICATION, RESOLVED, UNRESPONSIVE
-- All 6 categories represented
-- Clustered hotspots near key landmarks for visible map density
-- Uses source="SEED" so normal seed check still works
+Points are generated randomly inside each ward polygon using a ray-casting
+point-in-polygon test so all markers appear strictly within the jurisdiction.
+
+Distribution:
+  Ward 104 (Kondapur)        ~75 points
+  Ward 105 (Gachibowli)      ~80 points
+  Ward 106 (Serilingampally) ~75 points
+  Ward 111 (Bharathi Nagar)  ~20 points  (tiny strip ~700m × 180m)
 
 Usage:
     cd backend
@@ -13,6 +16,7 @@ Usage:
 """
 
 import sys
+import json
 import uuid
 import random
 from pathlib import Path
@@ -22,85 +26,19 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+GEOJSON_PATH = BACKEND_DIR.parent / "ghmc_wards.geojson"
+
 from database import SessionLocal, Ward, Ticket, User, ActionLog, init_db  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Locations spread across wards 104-110 (Serilingampally zone)
-# Format: (lat, lng, area_name, ward_hint)
+# Ward config — number → (target_count, area_name_examples)
 # ---------------------------------------------------------------------------
-DEMO_LOCATIONS = [
-    # Ward 104 – Gachibowli / Financial District area
-    (17.4410, 78.3480, "Gachibowli Stadium Junction", 104),
-    (17.4385, 78.3520, "DLF Cyber City Gate 2", 104),
-    (17.4360, 78.3550, "Financial District Flyover", 104),
-    (17.4430, 78.3440, "Gachibowli Police Station", 104),
-    (17.4470, 78.3390, "Gachibowli Main Road Median", 104),
-
-    # Ward 105 – Madhapur / HITEC City
-    (17.4490, 78.3840, "Madhapur Petrol Pump", 105),
-    (17.4520, 78.3780, "HITEC City Metro Gate 3", 105),
-    (17.4540, 78.3720, "Madhapur Cross Roads", 105),
-    (17.4460, 78.3900, "Cyber Towers Roundabout", 105),
-    (17.4480, 78.3860, "Madhapur Bus Depot", 105),
-
-    # Ward 106 – Kondapur / Kothaguda
-    (17.4690, 78.3600, "Kondapur Main Road", 106),
-    (17.4710, 78.3570, "Kothaguda Junction", 106),
-    (17.4730, 78.3540, "Kondapur Park Lane", 106),
-    (17.4660, 78.3640, "ISB Road Kondapur", 106),
-    (17.4680, 78.3620, "Kondapur Petrol Bunk", 106),
-
-    # Ward 107 – Miyapur / Hafeezpet
-    (17.4970, 78.3540, "Miyapur X Roads", 107),
-    (17.4990, 78.3500, "Hafeezpet Main Road", 107),
-    (17.5010, 78.3470, "Miyapur Auto Nagar", 107),
-    (17.5030, 78.3440, "Hafeezpet Colony", 107),
-    (17.4950, 78.3570, "Miyapur MMTS Bridge", 107),
-
-    # Ward 108 – Chandanagar / Madinaguda
-    (17.5100, 78.3230, "Chandanagar Main Road", 108),
-    (17.5120, 78.3200, "Madinaguda Junction", 108),
-    (17.5080, 78.3260, "Chandanagar Overhead Tank", 108),
-    (17.5140, 78.3170, "Madinaguda Bus Stand", 108),
-    (17.5060, 78.3290, "Chandanagar Police Quarters", 108),
-
-    # Ward 109 – Nallagandla / Gopanpally
-    (17.4830, 78.3110, "Nallagandla Lake Road", 109),
-    (17.4850, 78.3070, "Gopanpally Main Road", 109),
-    (17.4810, 78.3150, "Nallagandla Bypass", 109),
-    (17.4870, 78.3040, "Gopanpally Colony", 109),
-    (17.4790, 78.3200, "Nallagandla Crossroads", 109),
-
-    # Ward 110 – Narsingi / Kokapet
-    (17.4280, 78.3530, "Narsingi Junction", 110),
-    (17.4260, 78.3560, "Kokapet Main Road", 110),
-    (17.4300, 78.3500, "Narsingi Industrial Area", 110),
-    (17.4240, 78.3590, "Kokapet Residential Gate", 110),
-    (17.4320, 78.3470, "Narsingi Bus Stop", 110),
-
-    # Dense hotspot cluster – Gachibowli (for visible clustering demo)
-    (17.4395, 78.3475, "Gachibowli Outer Ring Road", 104),
-    (17.4405, 78.3465, "Near Gachibowli Flyover", 104),
-    (17.4415, 78.3455, "Gachibowli Bowl Area", 104),
-
-    # Dense hotspot cluster – HITEC City center
-    (17.4500, 78.3810, "HITEC City Central Plaza", 105),
-    (17.4510, 78.3800, "HITEC City Phase 2", 105),
-
-    # Dense hotspot cluster – Kondapur market
-    (17.4700, 78.3580, "Kondapur Market", 106),
-    (17.4715, 78.3565, "Kondapur Vegetable Mkt", 106),
-
-    # Scattered filler
-    (17.4580, 78.3350, "Raidurgam Park", 106),
-    (17.4600, 78.3300, "Raidurgam Junction", 106),
-    (17.4790, 78.3390, "Jubilee Hills Road 45", 105),
-    (17.4820, 78.3360, "Jubilee Hills Check Post", 105),
-    (17.5160, 78.3140, "Madinaguda Residential", 108),
-    (17.4900, 78.3290, "Serilingampally Circle", 107),
-    (17.4920, 78.3260, "Lingampally Station Rd", 107),
-    (17.4940, 78.3230, "Lingampally Colony", 107),
-]
+TARGET_WARDS_CONFIG = {
+    104: {"count": 75,  "name": "Kondapur"},
+    105: {"count": 80,  "name": "Gachibowli"},
+    106: {"count": 75,  "name": "Serilingampally"},
+    111: {"count": 20,  "name": "Bharathi Nagar"},
+}
 
 CATEGORIES = [
     "garbage_on_roads",
@@ -116,15 +54,18 @@ DESCRIPTIONS = {
         "Large pile of mixed waste dumped on the footpath, completely blocking pedestrian access.",
         "Household garbage bags strewn across the road near the bus stop, creating a health hazard.",
         "Garbage scattered by stray dogs overnight — spread over 30 metres of road.",
-        "Trash dumped at the turn, vehicles have to swerve around it.",
+        "Trash dumped at the junction, vehicles have to swerve around it.",
         "Waste pile near the school gate — strong foul odour in the area.",
+        "Rotting organic waste and plastic mixed together near the apartment complex.",
+        "Street corner turned into an illegal dumping spot for weeks.",
     ],
     "overflowing_bins": [
         "Municipal bin overflowing for 4 days. Flies and mosquitoes breeding in standing water.",
         "Bin capacity far exceeded; waste piled 2 ft above the bin lid.",
-        "Community bin not emptied since weekend. Residents approaching corporation officials.",
+        "Community bin not emptied since the weekend. Residents approaching corporation officials.",
         "Overflow bin attracting stray cattle and dogs to the residential lane.",
         "Garbage bin near the park hasn't been collected — strong smell affecting nearby shops.",
+        "Two bins in this area have been overflowing since Monday with no response.",
     ],
     "construction_debris": [
         "Construction sand and bricks dumped on the service road, narrowing it to one lane.",
@@ -139,13 +80,14 @@ DESCRIPTIONS = {
         "Drain blocked with silt and solid waste — overflow reaching ground floor shops.",
         "Manhole covered with debris; slow drainage causing mosquito breeding.",
         "Open drain packed with garbage, causing foul smell and seepage into adjacent plot.",
+        "Children's park next to blocked nala has become unusable due to waterlogging.",
     ],
     "green_waste": [
         "Tree branches from last week's storm still blocking half the road.",
         "Municipality tree-trimming waste left on footpath for 6 days.",
         "Fallen coconut fronds blocking the side lane near the temple.",
         "Large tree branch broke off and has not been cleared from the roadside.",
-        "Lawn clippings and garden waste dumped on the open plot by local contractor.",
+        "Lawn clippings and garden waste dumped on the open plot by a local contractor.",
     ],
     "other": [
         "Illegal slaughterhouse waste dumped in the open area at night.",
@@ -156,14 +98,14 @@ DESCRIPTIONS = {
     ],
 }
 
-# Severity weights: realistic urban distribution (~20% LOW, 48% MEDIUM, 32% HIGH)
+# Realistic severity distribution
 SEVERITY_WEIGHTS = ["LOW"] * 5 + ["MEDIUM"] * 12 + ["HIGH"] * 8
 
-# Status weights: mostly OPEN for an active dashboard look
+# Mostly OPEN, with some resolved and pending for variety
 STATUS_WEIGHTS = (
     ["OPEN"] * 18
-    + ["PENDING_VERIFICATION"] * 6
-    + ["RESOLVED"] * 8
+    + ["PENDING_VERIFICATION"] * 5
+    + ["RESOLVED"] * 9
     + ["UNRESPONSIVE"] * 3
 )
 
@@ -173,17 +115,80 @@ REPORTER_NAMES = [
     "Ravi Shankar", "Deepa Chowdary", "Arun Babu", "Meena Iyer",
     "Sanjay Gupta", "Kavitha Raju", "Naresh Goud", "Sneha Pillai",
     "Ramesh Tiwari", "Usha Rani", "Vishal Shetty", "Padma Latha",
+    "Krishna Murthy", "Sudha Rani", "Bhaskar Reddy", "Hema Latha",
+    "Ganesh Babu", "Rekha Sharma", "Sunil Kumar", "Nirmala Devi",
+    "Pavan Kalyan", "Saritha Reddy",
 ]
 
+# ---------------------------------------------------------------------------
+# Point-in-polygon (ray casting)
+# ---------------------------------------------------------------------------
 
-def seed_demo(count: int = 50):
+def _point_in_polygon(lat: float, lng: float, ring: list) -> bool:
+    """Ray-casting test. ring is list of [lng, lat] pairs."""
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if ((yi > lat) != (yj > lat)) and (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _point_in_feature(lat: float, lng: float, feature: dict) -> bool:
+    geom = feature["geometry"]
+    if geom["type"] == "Polygon":
+        return _point_in_polygon(lat, lng, geom["coordinates"][0])
+    elif geom["type"] == "MultiPolygon":
+        return any(
+            _point_in_polygon(lat, lng, poly[0])
+            for poly in geom["coordinates"]
+        )
+    return False
+
+
+def _bbox(feature: dict) -> tuple:
+    geom = feature["geometry"]
+    if geom["type"] == "Polygon":
+        coords = geom["coordinates"][0]
+    else:
+        coords = [c for poly in geom["coordinates"] for c in poly[0]]
+    lngs = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    return min(lats), max(lats), min(lngs), max(lngs)
+
+
+def generate_points_in_ward(feature: dict, count: int, rng: random.Random) -> list:
+    """Generate random (lat, lng) pairs strictly inside the ward polygon."""
+    min_lat, max_lat, min_lng, max_lng = _bbox(feature)
+    points = []
+    max_attempts = count * 200
+    attempts = 0
+    while len(points) < count and attempts < max_attempts:
+        lat = rng.uniform(min_lat, max_lat)
+        lng = rng.uniform(min_lng, max_lng)
+        if _point_in_feature(lat, lng, feature):
+            points.append((lat, lng))
+        attempts += 1
+    return points
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def seed_demo():
     init_db()
     db = SessionLocal()
 
     try:
+        # Clear existing SEED data
         existing = db.query(Ticket).filter(Ticket.source == "SEED").count()
         if existing > 0:
-            print(f"[info] {existing} SEED reports already exist. Clearing and re-seeding...")
+            print(f"[info] Clearing {existing} existing SEED reports...")
             from database import ActionLog as AL, MessageLog as ML
             seed_tickets = db.query(Ticket).filter(Ticket.source == "SEED").all()
             for t in seed_tickets:
@@ -195,109 +200,134 @@ def seed_demo(count: int = 50):
                 db.query(User).filter(User.phone == phone).delete()
             db.commit()
 
-        wards = db.query(Ward).all()
+        # Load ward polygons from GeoJSON
+        with open(GEOJSON_PATH) as f:
+            geojson = json.load(f)
+
+        ward_features = {}
+        for feat in geojson["features"]:
+            ward_str = feat["properties"].get("ward", "")
+            parts = ward_str.split("-", 1)
+            if len(parts) < 2:
+                continue
+            try:
+                num = int(parts[0].strip())
+            except ValueError:
+                continue
+            if num in TARGET_WARDS_CONFIG:
+                ward_features[num] = feat
+
+        missing = set(TARGET_WARDS_CONFIG) - set(ward_features)
+        if missing:
+            print(f"[warn] Ward(s) not found in GeoJSON: {missing}")
+
+        # DB ward lookup by ward_number
+        wards_by_num = {w.ward_number: w for w in db.query(Ward).all()}
+
+        rng = random.Random(42)
         seeded = 0
-        locations = DEMO_LOCATIONS[:count]
-        random.seed(99)
 
-        for i, (lat, lng, area, ward_hint) in enumerate(locations):
-            severity = random.choice(SEVERITY_WEIGHTS)
-            status = random.choice(STATUS_WEIGHTS)
-            category = random.choice(CATEGORIES)
-            description = random.choice(DESCRIPTIONS[category])
-            days_ago = random.randint(0, 21)
-            hours_ago = random.randint(0, 23)
-            created_at = datetime.utcnow() - timedelta(days=days_ago, hours=hours_ago)
+        for ward_num, cfg in sorted(TARGET_WARDS_CONFIG.items()):
+            feature = ward_features.get(ward_num)
+            if feature is None:
+                print(f"[skip] Ward {ward_num} not in GeoJSON.")
+                continue
 
-            ward = None
-            if wards:
-                best, best_dist = None, float("inf")
-                for w in wards:
-                    if w.center_lat and w.center_lng:
-                        d = (w.center_lat - lat) ** 2 + (w.center_lng - lng) ** 2
-                        if d < best_dist:
-                            best_dist, best = d, w
-                ward = best
+            target_count = cfg["count"]
+            ward_label = cfg["name"]
+            db_ward = wards_by_num.get(ward_num)
 
-            phone = f"seed-{uuid.uuid4().hex[:12]}"
-            reporter = random.choice(REPORTER_NAMES)
-            user = User(
-                user_id=str(uuid.uuid4()),
-                phone=phone,
-                role="CITIZEN",
-                name=reporter,
-                created_at=created_at,
-            )
-            db.add(user)
-            db.flush()
+            print(f"[ward {ward_num}] Generating {target_count} points in {ward_label}...")
+            points = generate_points_in_ward(feature, target_count, rng)
+            if len(points) < target_count:
+                print(f"  [warn] Only got {len(points)}/{target_count} points (polygon too small)")
 
-            ticket_id = f"tk-{uuid.uuid4().hex[:8]}"
-            resolved_at = None
-            if status == "RESOLVED":
-                resolved_at = created_at + timedelta(days=random.randint(1, 4))
-            elif status == "UNRESPONSIVE":
-                resolved_at = created_at + timedelta(days=random.randint(3, 7))
+            for lat, lng in points:
+                severity = rng.choice(SEVERITY_WEIGHTS)
+                status = rng.choice(STATUS_WEIGHTS)
+                category = rng.choice(CATEGORIES)
+                description = rng.choice(DESCRIPTIONS[category])
+                days_ago = rng.randint(0, 28)
+                hours_ago = rng.randint(0, 23)
+                created_at = datetime.utcnow() - timedelta(days=days_ago, hours=hours_ago)
 
-            if severity == "HIGH":
-                upvotes = random.randint(5, 30)
-            elif severity == "MEDIUM":
-                upvotes = random.randint(1, 12)
-            else:
-                upvotes = random.randint(0, 5)
+                phone = f"seed-{uuid.uuid4().hex[:12]}"
+                reporter = rng.choice(REPORTER_NAMES)
+                user = User(
+                    user_id=str(uuid.uuid4()),
+                    phone=phone,
+                    role="CITIZEN",
+                    name=reporter,
+                    created_at=created_at,
+                )
+                db.add(user)
+                db.flush()
 
-            ticket = Ticket(
-                ticket_id=ticket_id,
-                citizen_phone=phone,
-                ward_id=ward.ward_id if ward else None,
-                latitude=lat,
-                longitude=lng,
-                severity_score=severity,
-                status=status,
-                source="SEED",
-                description=description,
-                category=category,
-                address=area,
-                reporter_name=reporter,
-                upvote_count=upvotes,
-                moderation_status="APPROVED",
-                created_at=created_at,
-                resolved_at=resolved_at,
-            )
-            db.add(ticket)
+                ticket_id = f"tk-{uuid.uuid4().hex[:8]}"
+                resolved_at = None
+                if status == "RESOLVED":
+                    resolved_at = created_at + timedelta(days=rng.randint(1, 4))
+                elif status == "UNRESPONSIVE":
+                    resolved_at = created_at + timedelta(days=rng.randint(3, 7))
 
-            action = ActionLog(
-                action_log_id=str(uuid.uuid4()),
-                ticket_id=ticket_id,
-                action_type="STATUS_CHANGE",
-                old_status=None,
-                new_status=status,
-                actor="system",
-                notes={"source": "SEED_DEMO"},
-                created_at=created_at,
-            )
-            db.add(action)
-            seeded += 1
+                if severity == "HIGH":
+                    upvotes = rng.randint(5, 35)
+                elif severity == "MEDIUM":
+                    upvotes = rng.randint(1, 15)
+                else:
+                    upvotes = rng.randint(0, 5)
+
+                ticket = Ticket(
+                    ticket_id=ticket_id,
+                    citizen_phone=phone,
+                    ward_id=db_ward.ward_id if db_ward else None,
+                    latitude=lat,
+                    longitude=lng,
+                    photo_url="/sample_image.jpg",
+                    severity_score=severity,
+                    status=status,
+                    source="SEED",
+                    description=description,
+                    category=category,
+                    address=f"{ward_label} area",
+                    reporter_name=reporter,
+                    upvote_count=upvotes,
+                    moderation_status="APPROVED",
+                    created_at=created_at,
+                    resolved_at=resolved_at,
+                )
+                db.add(ticket)
+
+                action = ActionLog(
+                    action_log_id=str(uuid.uuid4()),
+                    ticket_id=ticket_id,
+                    action_type="STATUS_CHANGE",
+                    old_status=None,
+                    new_status=status,
+                    actor="system",
+                    notes={"source": "SEED_DEMO"},
+                    created_at=created_at,
+                )
+                db.add(action)
+                seeded += 1
 
         db.commit()
 
+        # Summary
         sev_counts = {}
         for sev in ["LOW", "MEDIUM", "HIGH"]:
             sev_counts[sev] = db.query(Ticket).filter(
                 Ticket.source == "SEED", Ticket.severity_score == sev
             ).count()
-        status_counts = {}
+        st_counts = {}
         for st in ["OPEN", "PENDING_VERIFICATION", "RESOLVED", "UNRESPONSIVE"]:
-            status_counts[st] = db.query(Ticket).filter(
+            st_counts[st] = db.query(Ticket).filter(
                 Ticket.source == "SEED", Ticket.status == st
             ).count()
 
-        print(f"\n[done] Seeded {seeded} demo reports.\n")
-        print("Severity breakdown:")
-        for k, v in sev_counts.items():
-            print(f"  {k:8s} {v:3d}  {'█' * v}")
-        print("\nStatus breakdown:")
-        for k, v in status_counts.items():
-            print(f"  {k:25s} {v:3d}  {'█' * v}")
+        print(f"\n[done] Seeded {seeded} reports across wards 104/105/106/111.\n")
+        print("Severity:  " + "  ".join(f"{k}={v}" for k, v in sev_counts.items()))
+        print("Status:    " + "  ".join(f"{k}={v}" for k, v in st_counts.items()))
 
     except Exception as e:
         db.rollback()

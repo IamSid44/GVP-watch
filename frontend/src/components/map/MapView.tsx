@@ -6,17 +6,17 @@ import { useDarkMode } from "../../context/DarkModeContext";
 
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY as string;
 
-const MAP_CENTER = { lat: 17.4742, lng: 78.3327 };
+const MAP_CENTER = { lat: 17.456, lng: 78.336 };
 
 const SERILINGAMPALLY_BOUNDS = {
-  north: 17.5600,
-  south: 17.3900,
-  east:  78.4650,
-  west:  78.2350,
+  north: 17.5400,
+  south: 17.3800,
+  east:  78.4300,
+  west:  78.2400,
 };
 
-// Wards 104–110 only
-const HIGHLIGHTED_WARDS = new Set([104, 105, 106, 107, 108, 109, 110]);
+// Active jurisdiction: wards 104, 105, 106, 111
+const HIGHLIGHTED_WARDS = new Set([104, 105, 106, 111]);
 
 // Hide POI icons/labels, keep roads and area names
 const LIGHT_BASE_STYLES: google.maps.MapTypeStyle[] = [
@@ -46,7 +46,7 @@ const DARK_MAP_STYLES: google.maps.MapTypeStyle[] = [
 
 const BASE_MAP_OPTIONS: google.maps.MapOptions = {
   zoom: 13,
-  minZoom: 12,
+  minZoom: 10,
   maxZoom: 19,
   disableDefaultUI: false,
   zoomControl: true,
@@ -76,6 +76,8 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
   const mapRef = useRef<google.maps.Map | null>(null);
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
   const [zoom, setZoom] = useState(13);
+  // mapReady is state (not a ref) so that setting it in onLoad triggers dependent effects
+  const [mapReady, setMapReady] = useState(false);
   const { dark } = useDarkMode();
 
   const { isLoaded, loadError } = useJsApiLoader({
@@ -87,45 +89,80 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
   useEffect(() => {
     if (!mapRef.current) return;
     mapRef.current.setOptions({ styles: dark ? DARK_MAP_STYLES : LIGHT_BASE_STYLES });
-  }, [dark]);
+  }, [dark, mapReady]);
 
-  // Draw (or redraw) ward polygons whenever boundaries load or map mounts
+  // Draw (or redraw) ward polygons whenever boundaries, map, or dark mode changes.
+  // mapReady (state) is in the dep array so this effect re-runs the moment onLoad fires,
+  // even if wardBoundaries was already available before the map instance was created.
   useEffect(() => {
     if (!mapRef.current || !wardBoundaries) return;
 
-    // Clear old polygons
     polygonsRef.current.forEach((p) => p.setMap(null));
     polygonsRef.current = [];
 
+    // Pastel blue palette — lighter in dark mode for contrast against dark basemap
+    const normalStroke = dark ? "#60a5fa" : "#93c5fd";
+    const normalFill   = dark ? "#3b82f6" : "#bfdbfe";
+    const normalFillOp = dark ? 0.15 : 0.22;
+    const hoverStroke  = dark ? "#93c5fd" : "#2563eb";
+    const hoverFill    = dark ? "#60a5fa" : "#3b82f6";
+    const hoverFillOp  = dark ? 0.30 : 0.28;
+
     wardBoundaries.features.forEach((feature) => {
       const geom = feature.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-      const props = feature.properties as { ward_name?: string; ward_number?: number };
+      // Support both API format (ward_number/ward_name) and local GeoJSON format (ward: "104-NAME")
+      const raw = feature.properties as Record<string, unknown>;
+      let wardNum: number | null = null;
+      let wardLabel: string | null = null;
 
-      if (!props?.ward_number || !HIGHLIGHTED_WARDS.has(props.ward_number)) return;
+      if (raw.ward_number != null) {
+        wardNum = Number(raw.ward_number);
+        wardLabel = (raw.ward_name as string) ?? null;
+      } else if (typeof raw.ward === "string") {
+        const parts = (raw.ward as string).split("-");
+        wardNum = parseInt(parts[0], 10);
+        wardLabel = parts.slice(1).join(" ").trim() || null;
+      }
+
+      if (!wardNum || !HIGHLIGHTED_WARDS.has(wardNum)) return;
 
       const drawRing = (ring: number[][]) => {
         const path = ring.map(([lng, lat]) => ({ lat, lng }));
         const polygon = new google.maps.Polygon({
           paths: path,
-          strokeColor: "#f59e0b",
+          strokeColor: normalStroke,
           strokeOpacity: 1.0,
-          strokeWeight: 2.5,
-          fillColor: "#fbbf24",
-          fillOpacity: 0.18,
+          strokeWeight: 1,
+          fillColor: normalFill,
+          fillOpacity: normalFillOp,
           map: mapRef.current!,
         });
         polygonsRef.current.push(polygon);
 
-        if (props.ward_name) {
-          const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="font-size:13px;font-weight:600">${props.ward_name}</div>`,
+        const label = wardLabel
+          ? `<div style="font-size:13px;font-weight:600;padding:2px 4px">Ward ${wardNum} · ${wardLabel}</div>`
+          : `<div style="font-size:13px;font-weight:600;padding:2px 4px">Ward ${wardNum}</div>`;
+        const infoWindow = new google.maps.InfoWindow({ content: label });
+
+        polygon.addListener("mouseover", (e: google.maps.PolyMouseEvent) => {
+          polygon.setOptions({
+            strokeColor: hoverStroke,
+            strokeWeight: 2.5,
+            fillColor: hoverFill,
+            fillOpacity: hoverFillOp,
           });
-          polygon.addListener("mouseover", (e: google.maps.PolyMouseEvent) => {
-            infoWindow.setPosition(e.latLng);
-            infoWindow.open(mapRef.current!);
+          infoWindow.setPosition(e.latLng);
+          infoWindow.open(mapRef.current!);
+        });
+        polygon.addListener("mouseout", () => {
+          polygon.setOptions({
+            strokeColor: normalStroke,
+            strokeWeight: 1,
+            fillColor: normalFill,
+            fillOpacity: normalFillOp,
           });
-          polygon.addListener("mouseout", () => infoWindow.close());
-        }
+          infoWindow.close();
+        });
       };
 
       if (geom.type === "Polygon") {
@@ -134,11 +171,12 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
         geom.coordinates.forEach((poly) => poly.forEach(drawRing));
       }
     });
-  }, [wardBoundaries, isLoaded]);
+  }, [wardBoundaries, mapReady, dark]);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
     map.setOptions({ styles: dark ? DARK_MAP_STYLES : LIGHT_BASE_STYLES });
+    setMapReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -146,6 +184,7 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
     polygonsRef.current.forEach((p) => p.setMap(null));
     polygonsRef.current = [];
     mapRef.current = null;
+    setMapReady(false);
   }, []);
 
   if (loadError) {
