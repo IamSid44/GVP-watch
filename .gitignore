@@ -49,10 +49,10 @@ htmlcov/
 .env.*.local
 
 # Database
-*.db
+# *.db
 *.sqlite
 *.sqlite3
-gvp_watch.db
+# gvp_watch.db
 
 # Logs
 logs/
