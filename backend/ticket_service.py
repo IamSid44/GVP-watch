@@ -24,6 +24,7 @@ from database import (
     Ticket,
     TicketStatusEnum,
     User,
+    UserRoleEnum,
     Ward,
     UserSession,
     SessionStateEnum,
@@ -34,6 +35,94 @@ from whatsapp_client import get_whatsapp_client
 
 logger = get_logger(__name__)
 whatsapp_client = get_whatsapp_client()
+
+# ============================================================================
+# TRANSLATIONS
+# ============================================================================
+
+STRINGS = {
+    "en": {
+        "welcome":              "Welcome to GVP Watch! Please select your language:",
+        "lang_header":          "Language",
+        "main_menu_body":       "Please select an option below:",
+        "main_menu_header":     "Main Menu",
+        "btn_report":           "Report GVP",
+        "btn_track":            "Track Ticket",
+        "btn_website":          "Open Website",
+        "send_photo":           "Please upload a photo of the garbage/waste.",
+        "send_photo_prompt":    "Please upload an image/photo of the waste.",
+        "enter_ticket_id":      "Please enter your Ticket ID to track its status.",
+        "ticket_found":         "Ticket: {ticket_id}\nStatus: {status}\nSeverity: {severity}\nLocation: {lat}, {lon}",
+        "ticket_not_found":     "Ticket not found. Please check the ID and try again, or type 'Hi' to restart.",
+        "photo_received":       "Photo received! Now, please send a location pin.",
+        "send_location":        "Please send a location pin.",
+        "severity_body":        "How severe is this issue?",
+        "severity_header":      "Severity",
+        "severity_prompt":      "Please select the severity:",
+        "btn_low":              "Low",
+        "btn_medium":           "Medium",
+        "btn_high":             "High",
+        "ask_description":      "Great! Finally, please type any additional info or the type of waste.",
+        "report_submitted":     "Thank you! Your report has been submitted.\nYour ticket ID is: {ticket_id}\nWe will review it shortly.",
+        "website_msg":          "Visit our website for more information: https://gvpwatch.example.com\n\nThank you!",
+    },
+    "te": {
+        "welcome":              "GVP Watch కి స్వాగతం! దయచేసి మీ భాషను ఎంచుకోండి:",
+        "lang_header":          "భాష",
+        "main_menu_body":       "దయచేసి ఒక ఎంపికను ఎంచుకోండి:",
+        "main_menu_header":     "ప్రధాన మెనూ",
+        "btn_report":           "GVP నివేదించు",
+        "btn_track":            "టికెట్ ట్రాక్ చేయి",
+        "btn_website":          "వెబ్‌సైట్ తెరువు",
+        "send_photo":           "దయచేసి చెత్త/వ్యర్థాల ఫోటో అప్‌లోడ్ చేయండి.",
+        "send_photo_prompt":    "దయచేసి వ్యర్థాల చిత్రం/ఫోటో అప్‌లోడ్ చేయండి.",
+        "enter_ticket_id":      "స్థితిని ట్రాక్ చేయడానికి మీ టికెట్ ID నమోదు చేయండి.",
+        "ticket_found":         "టికెట్: {ticket_id}\nస్థితి: {status}\nతీవ్రత: {severity}\nస్థానం: {lat}, {lon}",
+        "ticket_not_found":     "టికెట్ కనుగొనబడలేదు. ID తనిఖీ చేసి మళ్ళీ ప్రయత్నించండి, లేదా పునఃప్రారంభించడానికి 'Hi' అని టైప్ చేయండి.",
+        "photo_received":       "ఫోటో అందింది! ఇప్పుడు దయచేసి లొకేషన్ పిన్ పంపండి.",
+        "send_location":        "దయచేసి లొకేషన్ పిన్ పంపండి.",
+        "severity_body":        "ఈ సమస్య ఎంత తీవ్రంగా ఉంది?",
+        "severity_header":      "తీవ్రత",
+        "severity_prompt":      "దయచేసి తీవ్రతను ఎంచుకోండి:",
+        "btn_low":              "తక్కువ",
+        "btn_medium":           "మధ్యస్థం",
+        "btn_high":             "అధికం",
+        "ask_description":      "చాలా బాగుంది! చివరగా, దయచేసి అదనపు వివరాలు లేదా వ్యర్థాల రకాన్ని టైప్ చేయండి.",
+        "report_submitted":     "ధన్యవాదాలు! మీ నివేదిక సమర్పించబడింది.\nమీ టికెట్ ID: {ticket_id}\nమేము త్వరలో సమీక్షిస్తాము.",
+        "website_msg":          "మరింత సమాచారం కోసం మా వెబ్‌సైట్ సందర్శించండి: https://gvpwatch.example.com\n\nధన్యవాదాలు!",
+    },
+    "hi": {
+        "welcome":              "GVP Watch में आपका स्वागत है! कृपया अपनी भाषा चुनें:",
+        "lang_header":          "भाषा",
+        "main_menu_body":       "कृपया नीचे एक विकल्प चुनें:",
+        "main_menu_header":     "मुख्य मेनू",
+        "btn_report":           "GVP रिपोर्ट करें",
+        "btn_track":            "टिकट ट्रैक करें",
+        "btn_website":          "वेबसाइट खोलें",
+        "send_photo":           "कृपया कचरे/अपशिष्ट की एक फ़ोटो अपलोड करें।",
+        "send_photo_prompt":    "कृपया अपशिष्ट की एक छवि/फ़ोटो अपलोड करें।",
+        "enter_ticket_id":      "स्थिति ट्रैक करने के लिए अपना टिकट ID दर्ज करें।",
+        "ticket_found":         "टिकट: {ticket_id}\nस्थिति: {status}\nगंभीरता: {severity}\nस्थान: {lat}, {lon}",
+        "ticket_not_found":     "टिकट नहीं मिला। कृपया ID जाँचें और पुनः प्रयास करें, या पुनः शुरू करने के लिए 'Hi' टाइप करें।",
+        "photo_received":       "फ़ोटो मिल गई! अब कृपया एक लोकेशन पिन भेजें।",
+        "send_location":        "कृपया एक लोकेशन पिन भेजें।",
+        "severity_body":        "यह समस्या कितनी गंभीर है?",
+        "severity_header":      "गंभीरता",
+        "severity_prompt":      "कृपया गंभीरता चुनें:",
+        "btn_low":              "कम",
+        "btn_medium":           "मध्यम",
+        "btn_high":             "अधिक",
+        "ask_description":      "बढ़िया! अंत में, कृपया कोई अतिरिक्त जानकारी या अपशिष्ट का प्रकार टाइप करें।",
+        "report_submitted":     "धन्यवाद! आपकी रिपोर्ट सबमिट हो गई है।\nआपका टिकट ID है: {ticket_id}\nहम जल्द ही समीक्षा करेंगे।",
+        "website_msg":          "अधिक जानकारी के लिए हमारी वेबसाइट देखें: https://gvpwatch.example.com\n\nधन्यवाद!",
+    },
+}
+
+
+def _t(lang: str, key: str, **kwargs) -> str:
+    """Return translated string for given language, falling back to English."""
+    text = STRINGS.get(lang, STRINGS["en"]).get(key, STRINGS["en"].get(key, key))
+    return text.format(**kwargs) if kwargs else text
 
 
 class TicketService:
@@ -177,47 +266,50 @@ class TicketService:
             session = UserSession(phone=sender_phone, current_state=SessionStateEnum.SELECTING_LANGUAGE, temp_data={})
             self.db.add(session)
             self._commit()
-            
+
             self._send_buttons(
                 sender_phone,
-                "Welcome to GVP Watch! Please select your language:",
+                _t("en", "welcome"),
                 [
                     {"id": "lang_en", "title": "English"},
-                    {"id": "lang_te", "title": "Telugu"},
-                    {"id": "lang_hi", "title": "Hindi"}
+                    {"id": "lang_te", "title": "తెలుగు"},
+                    {"id": "lang_hi", "title": "हिंदी"},
                 ],
-                header_text="Language"
+                header_text=_t("en", "lang_header"),
             )
             return True
 
         message_type = event.get("message_type")
         state = session.current_state
+        lang = getattr(session, "language", None) or "en"
 
         if state == SessionStateEnum.SELECTING_LANGUAGE:
             if message_type == "interactive" and event.get("button_reply") in ["lang_en", "lang_te", "lang_hi"]:
-                session.language = event.get("button_reply").replace("lang_", "")
+                lang = event.get("button_reply").replace("lang_", "")
+                session.language = lang
                 session.current_state = SessionStateEnum.MAIN_MENU
                 self._commit()
                 self._send_buttons(
                     sender_phone,
-                    "Please select an option below:",
+                    _t(lang, "main_menu_body"),
                     [
-                        {"id": "menu_report", "title": "Report GVP"},
-                        {"id": "menu_track", "title": "Track Ticket"},
-                        {"id": "menu_website", "title": "Open Website"}
+                        {"id": "menu_report", "title": _t(lang, "btn_report")},
+                        {"id": "menu_track",  "title": _t(lang, "btn_track")},
+                        {"id": "menu_website","title": _t(lang, "btn_website")},
                     ],
-                    header_text="Main Menu"
+                    header_text=_t(lang, "main_menu_header"),
                 )
             else:
+                # Re-send language picker (always in English so user can read it)
                 self._send_buttons(
                     sender_phone,
-                    "Welcome to GVP Watch! Please select your language:",
+                    _t("en", "welcome"),
                     [
                         {"id": "lang_en", "title": "English"},
-                        {"id": "lang_te", "title": "Telugu"},
-                        {"id": "lang_hi", "title": "Hindi"}
+                        {"id": "lang_te", "title": "తెలుగు"},
+                        {"id": "lang_hi", "title": "हिंदी"},
                     ],
-                    header_text="Language"
+                    header_text=_t("en", "lang_header"),
                 )
 
         elif state == SessionStateEnum.MAIN_MENU:
@@ -226,25 +318,25 @@ class TicketService:
                 if btn_id == "menu_report":
                     session.current_state = SessionStateEnum.AWAITING_PHOTO
                     self._commit()
-                    self._send_text(sender_phone, "Please upload a photo of the garbage/waste.")
+                    self._send_text(sender_phone, _t(lang, "send_photo"))
                 elif btn_id == "menu_track":
                     session.current_state = SessionStateEnum.AWAITING_TRACK_ID
                     self._commit()
-                    self._send_text(sender_phone, "Please enter your Ticket ID to track its status.")
+                    self._send_text(sender_phone, _t(lang, "enter_ticket_id"))
                 elif btn_id == "menu_website":
-                    self._send_text(sender_phone, "Visit our website for more information: https://gvpwatch.example.com\n\nThank you!")
+                    self._send_text(sender_phone, _t(lang, "website_msg"))
                     self.db.delete(session)
                     self._commit()
             else:
                 self._send_buttons(
                     sender_phone,
-                    "Please select an option below:",
+                    _t(lang, "main_menu_body"),
                     [
-                        {"id": "menu_report", "title": "Report GVP"},
-                        {"id": "menu_track", "title": "Track Ticket"},
-                        {"id": "menu_website", "title": "Open Website"}
+                        {"id": "menu_report", "title": _t(lang, "btn_report")},
+                        {"id": "menu_track",  "title": _t(lang, "btn_track")},
+                        {"id": "menu_website","title": _t(lang, "btn_website")},
                     ],
-                    header_text="Main Menu"
+                    header_text=_t(lang, "main_menu_header"),
                 )
 
         elif state == SessionStateEnum.AWAITING_TRACK_ID:
@@ -252,9 +344,17 @@ class TicketService:
                 ticket_id = event.get("content", "").strip()
                 ticket = self.db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
                 if ticket:
-                    self._send_text(sender_phone, f"Ticket: {ticket.ticket_id}\nStatus: {ticket.status}\nSeverity: {ticket.severity_score}\nLocation: {ticket.latitude}, {ticket.longitude}")
+                    self._send_text(
+                        sender_phone,
+                        _t(lang, "ticket_found",
+                           ticket_id=ticket.ticket_id,
+                           status=ticket.status,
+                           severity=ticket.severity_score,
+                           lat=ticket.latitude,
+                           lon=ticket.longitude),
+                    )
                 else:
-                    self._send_text(sender_phone, "Ticket not found. Please check the ID and try again, or type 'Hi' to restart.")
+                    self._send_text(sender_phone, _t(lang, "ticket_not_found"))
                 self.db.delete(session)
                 self._commit()
 
@@ -266,9 +366,9 @@ class TicketService:
                 session.temp_data = tmp
                 session.current_state = SessionStateEnum.AWAITING_LOCATION
                 self._commit()
-                self._send_text(sender_phone, "Photo received! Now, please send a location pin.")
+                self._send_text(sender_phone, _t(lang, "photo_received"))
             else:
-                self._send_text(sender_phone, "Please upload an image/photo of the waste.")
+                self._send_text(sender_phone, _t(lang, "send_photo_prompt"))
 
         elif state == SessionStateEnum.AWAITING_LOCATION:
             if message_type == "location":
@@ -281,15 +381,16 @@ class TicketService:
                 self._commit()
                 self._send_buttons(
                     sender_phone,
-                    "How severe is this issue?",
+                    _t(lang, "severity_body"),
                     [
-                        {"id": "sev_low", "title": "Low"},
-                        {"id": "sev_medium", "title": "Medium"},
-                        {"id": "sev_high", "title": "High"}
-                    ]
+                        {"id": "sev_low",    "title": _t(lang, "btn_low")},
+                        {"id": "sev_medium", "title": _t(lang, "btn_medium")},
+                        {"id": "sev_high",   "title": _t(lang, "btn_high")},
+                    ],
+                    header_text=_t(lang, "severity_header"),
                 )
             else:
-                self._send_text(sender_phone, "Please send a location pin.")
+                self._send_text(sender_phone, _t(lang, "send_location"))
 
         elif state == SessionStateEnum.AWAITING_SEVERITY:
             if message_type == "interactive" and event.get("button_reply") in ["sev_low", "sev_medium", "sev_high"]:
@@ -298,27 +399,31 @@ class TicketService:
                 session.temp_data = tmp
                 session.current_state = SessionStateEnum.AWAITING_TYPE
                 self._commit()
-                self._send_text(sender_phone, "Great. Finally, please type any additional info or the type of waste.")
+                self._send_text(sender_phone, _t(lang, "ask_description"))
             else:
                 self._send_buttons(
                     sender_phone,
-                    "Please select the severity:",
+                    _t(lang, "severity_prompt"),
                     [
-                        {"id": "sev_low", "title": "Low"},
-                        {"id": "sev_medium", "title": "Medium"},
-                        {"id": "sev_high", "title": "High"}
-                    ]
+                        {"id": "sev_low",    "title": _t(lang, "btn_low")},
+                        {"id": "sev_medium", "title": _t(lang, "btn_medium")},
+                        {"id": "sev_high",   "title": _t(lang, "btn_high")},
+                    ],
+                    header_text=_t(lang, "severity_header"),
                 )
 
         elif state == SessionStateEnum.AWAITING_TYPE:
             if message_type == "text":
                 tmp = session.temp_data.copy() if session.temp_data else {}
                 tmp["info"] = event.get("content", "").strip()
-                
+
                 citizen_user = self.db.query(User).filter(User.phone == sender_phone).first()
                 if not citizen_user:
                     citizen_user = User(user_id=generate_uuid(), phone=sender_phone, role=UserRoleEnum.CITIZEN)
                     self.db.add(citizen_user)
+
+                # Find nearest ward from GPS coords
+                ward = self._find_nearest_ward(tmp.get("latitude"), tmp.get("longitude"))
 
                 ticket_id = "TKT-" + generate_uuid()[:8].upper()
                 new_ticket = Ticket(
@@ -329,19 +434,110 @@ class TicketService:
                     latitude=tmp.get("latitude"),
                     longitude=tmp.get("longitude"),
                     photo_url=tmp.get("photo_url") or tmp.get("photo_id"),
+                    photo_id=tmp.get("photo_id"),
+                    description=tmp.get("info") or None,
+                    ward_id=ward.ward_id if ward else None,
+                    source="WHATSAPP",
+                    moderation_status="APPROVED",
+                    upvote_count=0,
                     created_at=datetime.utcnow(),
-                    photo_received_at=datetime.utcnow()
+                    photo_received_at=datetime.utcnow(),
                 )
                 self.db.add(new_ticket)
+
+                # Audit log for ticket creation
+                self._add_action_log(
+                    ticket_id=ticket_id,
+                    action_type=ActionTypeEnum.STATUS_CHANGE,
+                    old_status=None,
+                    new_status=TicketStatusEnum.OPEN,
+                    actor="CITIZEN",
+                    actor_phone=sender_phone,
+                    notes={"source": "WHATSAPP", "ward_id": ward.ward_id if ward else None},
+                )
                 self._commit()
-                
-                self._send_text(sender_phone, f"Thank you! Your report has been submitted.\nYour ticket ID is: {ticket_id}\nWe will review it shortly.")
-                
+
+                # Notify assigned officer(s)
+                self._assign_and_notify_officers(new_ticket, ward)
+
+                self._send_text(sender_phone, _t(lang, "report_submitted", ticket_id=ticket_id))
+
                 self.db.delete(session)
                 self._commit()
 
         return True
 
+
+    def _find_nearest_ward(self, lat: Optional[float], lng: Optional[float]) -> Optional[Ward]:
+        """Return the ward whose center is closest to the given coordinates."""
+        if lat is None or lng is None:
+            return self.db.query(Ward).first()
+        wards = self.db.query(Ward).filter(Ward.center_lat.isnot(None)).all()
+        if not wards:
+            return self.db.query(Ward).first()
+        best, best_dist = None, float("inf")
+        for w in wards:
+            dist = (w.center_lat - lat) ** 2 + (w.center_lng - lng) ** 2
+            if dist < best_dist:
+                best_dist, best = dist, w
+        return best
+
+    def _assign_and_notify_officers(self, ticket: Ticket, ward: Optional[Ward]) -> None:
+        """Notify on-duty officers for the ticket's ward via WhatsApp."""
+        if not ward:
+            logger.warning(f"No ward for ticket {ticket.ticket_id}, skipping officer assignment")
+            if OFFICER_PHONE_DEFAULT:
+                self._send_text(
+                    OFFICER_PHONE_DEFAULT,
+                    f"ALERT: New ticket {ticket.ticket_id} has no ward. Please assign manually.",
+                    ticket_id=ticket.ticket_id,
+                )
+            return
+
+        officers = (
+            self.db.query(Officer)
+            .filter(
+                and_(
+                    Officer.user.has(is_active=True),
+                    Officer.is_on_duty,
+                    Officer.wards.any(Ward.ward_id == ward.ward_id),
+                )
+            )
+            .all()
+        )
+
+        if not officers:
+            logger.warning(f"No active officers for ward {ward.ward_name}, ticket {ticket.ticket_id}")
+            if OFFICER_PHONE_DEFAULT:
+                self._send_text(
+                    OFFICER_PHONE_DEFAULT,
+                    f"ALERT: No active officer for ward {ward.ward_name}. Ticket {ticket.ticket_id} needs manual assignment.",
+                    ticket_id=ticket.ticket_id,
+                )
+            return
+
+        ticket.officer_assigned_at = datetime.utcnow()
+        for officer in officers:
+            officer_phone = officer.user.phone
+            details = (
+                f"New Ticket: {ticket.ticket_id}\n"
+                f"Location: {ticket.latitude:.6f}, {ticket.longitude:.6f}\n"
+                f"Severity: {ticket.severity_score}\n"
+                f"Ward: {ward.ward_name}\n"
+                f"Description: {ticket.description or 'N/A'}\n"
+                "Reply with '<ticket_id> resolved' after fixing the issue."
+            )
+            self._send_text(officer_phone, details, ticket_id=ticket.ticket_id)
+            self._add_action_log(
+                ticket_id=ticket.ticket_id,
+                action_type=ActionTypeEnum.OFFICER_ASSIGNED,
+                actor="SYSTEM",
+                actor_phone=officer_phone,
+                notes={"ward_id": ward.ward_id},
+            )
+            if not ticket.officer_phone:
+                ticket.officer_phone = officer_phone
+        self._commit()
 
     def handle_citizen_initial_message(self, citizen_phone: str) -> bool:
         try:

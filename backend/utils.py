@@ -158,7 +158,7 @@ def extract_text_from_message(message: dict) -> Optional[str]:
     return None
 
 
-def extract_location_from_message(message: dict) -> Optional[Tuple[float, float]]:
+def extract_location_from_message(message: dict) -> Optional[dict]:
     """
     Extract latitude and longitude from a location message.
 
@@ -166,7 +166,7 @@ def extract_location_from_message(message: dict) -> Optional[Tuple[float, float]
         message: Message dict from webhook
 
     Returns:
-        Tuple of (latitude, longitude) or None if not found
+        Dict with 'latitude' and 'longitude' keys, or None if not found
     """
     if message.get("type") == "location":
         location = message.get("location", {})
@@ -176,7 +176,7 @@ def extract_location_from_message(message: dict) -> Optional[Tuple[float, float]
         if lat is not None and lon is not None:
             # Validate coordinates
             if -90 <= lat <= 90 and -180 <= lon <= 180:
-                return (lat, lon)
+                return {"latitude": lat, "longitude": lon}
             else:
                 logger.warning(f"Invalid coordinates in location: lat={lat}, lon={lon}")
 
