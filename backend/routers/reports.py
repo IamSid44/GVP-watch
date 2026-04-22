@@ -153,34 +153,32 @@ async def mark_report_resolved(
     photo: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Public endpoint to mark a report as cleaned up / resolved. Requires a verification photo."""
+    """Citizen marks report as cleaned up. Requires a photo. Moves to PENDING_VERIFICATION awaiting admin confirmation."""
     ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Report not found")
-    if ticket.status == "RESOLVED":
+    if ticket.status in ("RESOLVED", "PENDING_VERIFICATION"):
         return _ticket_to_response(ticket, db)
 
-    # Save resolution verification photo
+    # Save citizen's cleanup photo
     ext = os.path.splitext(photo.filename)[1] if photo.filename else ".jpg"
-    filename = f"{ticket_id}_resolved{ext}"
+    filename = f"{ticket_id}_citizen{ext}"
     filepath = UPLOAD_DIR / filename
     content = await photo.read()
     with open(filepath, "wb") as f:
         f.write(content)
-    resolution_photo_url = f"/uploads/{filename}"
 
     old_status = ticket.status
-    ticket.status = "RESOLVED"
-    ticket.resolved_at = datetime.utcnow()
-    ticket.resolution_photo_url = resolution_photo_url
+    ticket.status = "PENDING_VERIFICATION"
+    ticket.citizen_resolution_photo_url = f"/uploads/{filename}"
     action = ActionLog(
         action_log_id=str(uuid.uuid4()),
         ticket_id=ticket_id,
         action_type="STATUS_CHANGE",
         old_status=old_status,
-        new_status="RESOLVED",
+        new_status="PENDING_VERIFICATION",
         actor="citizen",
-        notes={"action": "mark_resolved_web"},
+        notes={"action": "citizen_cleanup_photo"},
     )
     db.add(action)
     db.commit()
@@ -221,6 +219,7 @@ def _ticket_to_response(ticket: Ticket, db: Session) -> ReportResponse:
         longitude=ticket.longitude,
         photo_url=ticket.photo_url,
         resolution_photo_url=ticket.resolution_photo_url,
+        citizen_resolution_photo_url=ticket.citizen_resolution_photo_url,
         severity_score=ticket.severity_score,
         status=ticket.status,
         description=ticket.description,

@@ -24,38 +24,68 @@ export default function ReportDetail({ report }: { report: Report }) {
     <div className="space-y-6">
       {/* Photos */}
       {report.photo_url && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <img
             src={report.photo_url}
             alt="Report photo"
             className="w-full h-64 object-cover rounded-xl"
           />
+          {report.citizen_resolution_photo_url && (
+            <div>
+              <p className="text-xs font-medium text-amber-700 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                Citizen cleanup photo — awaiting admin confirmation
+              </p>
+              <img
+                src={report.citizen_resolution_photo_url}
+                alt="Citizen cleanup photo"
+                className="w-full h-48 object-cover rounded-xl ring-2 ring-amber-400"
+              />
+            </div>
+          )}
           {report.resolution_photo_url && (
             <div>
               <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                Verified clean — resolution photo
+                Admin verified — fully resolved
               </p>
               <img
                 src={report.resolution_photo_url}
-                alt="Resolution verification photo"
-                className="w-full h-64 object-cover rounded-xl ring-2 ring-green-400"
+                alt="Admin resolution photo"
+                className="w-full h-48 object-cover rounded-xl ring-2 ring-green-400"
               />
             </div>
           )}
         </div>
       )}
-      {!report.photo_url && report.resolution_photo_url && (
-        <div>
-          <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-            Verified clean — resolution photo
-          </p>
-          <img
-            src={report.resolution_photo_url}
-            alt="Resolution verification photo"
-            className="w-full h-64 object-cover rounded-xl ring-2 ring-green-400"
-          />
+      {!report.photo_url && (report.citizen_resolution_photo_url || report.resolution_photo_url) && (
+        <div className="space-y-3">
+          {report.citizen_resolution_photo_url && (
+            <div>
+              <p className="text-xs font-medium text-amber-700 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                Citizen cleanup photo
+              </p>
+              <img
+                src={report.citizen_resolution_photo_url}
+                alt="Citizen cleanup photo"
+                className="w-full h-48 object-cover rounded-xl ring-2 ring-amber-400"
+              />
+            </div>
+          )}
+          {report.resolution_photo_url && (
+            <div>
+              <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                Admin verified — fully resolved
+              </p>
+              <img
+                src={report.resolution_photo_url}
+                alt="Admin resolution photo"
+                className="w-full h-48 object-cover rounded-xl ring-2 ring-green-400"
+              />
+            </div>
+          )}
         </div>
       )}
 

@@ -351,6 +351,7 @@ class ReportResponse(BaseModel):
     longitude: Optional[float] = None
     photo_url: Optional[str] = None
     resolution_photo_url: Optional[str] = None
+    citizen_resolution_photo_url: Optional[str] = None
     severity_score: Optional[str] = None
     status: str
     description: Optional[str] = None

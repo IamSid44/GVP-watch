@@ -19,7 +19,7 @@ export default function ReportCard({ report }: { report: Report }) {
   return (
     <Link
       to={`/report/${report.ticket_id}`}
-      className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden"
+      className="block bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all overflow-hidden"
     >
       <div className="flex">
         {report.photo_url && (
@@ -40,15 +40,15 @@ export default function ReportCard({ report }: { report: Report }) {
               {timeAgo(report.created_at)}
             </span>
           </div>
-          <p className="text-sm text-gray-700 truncate">
+          <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
             {report.category
               ? CATEGORY_LABELS[report.category] || report.category
               : "Report"}
             {report.address && (
-              <span className="text-gray-400"> — {report.address}</span>
+              <span className="text-gray-400 dark:text-gray-500"> — {report.address}</span>
             )}
           </p>
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
             {report.ward_name && (
               <span className="flex items-center gap-1">
                 <MapPin size={12} />
@@ -59,7 +59,7 @@ export default function ReportCard({ report }: { report: Report }) {
               <ThumbsUp size={12} />
               {report.upvote_count}
             </span>
-            <span className="text-gray-400 uppercase">{report.source}</span>
+            <span className="text-gray-400 dark:text-gray-500 uppercase">{report.source}</span>
           </div>
         </div>
       </div>

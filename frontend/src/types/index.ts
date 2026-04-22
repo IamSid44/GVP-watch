@@ -8,6 +8,7 @@ export interface Report {
   longitude?: number | null;
   photo_url?: string | null;
   resolution_photo_url?: string | null;
+  citizen_resolution_photo_url?: string | null;
   severity_score?: string | null;
   status: string;
   description?: string | null;

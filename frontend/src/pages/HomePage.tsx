@@ -30,13 +30,13 @@ export default function HomePage() {
   return (
     <div className="flex-1 flex flex-col relative">
       {/* View toggle */}
-      <div className="absolute top-3 left-3 z-10 bg-white rounded-lg shadow-md border border-gray-200 flex">
+      <div className="absolute top-3 left-3 z-10 bg-white dark:bg-gray-900 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 flex">
         <button
           onClick={() => setView("map")}
           className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 rounded-l-lg transition-colors ${
             view === "map"
-              ? "bg-gray-900 text-white"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           }`}
         >
           <Map size={14} /> Map
@@ -45,8 +45,8 @@ export default function HomePage() {
           onClick={() => setView("list")}
           className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 rounded-r-lg transition-colors ${
             view === "list"
-              ? "bg-gray-900 text-white"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           }`}
         >
           <List size={14} /> List
@@ -54,9 +54,9 @@ export default function HomePage() {
       </div>
 
       {/* Report count badge */}
-      <div className="absolute top-3 right-14 z-10 bg-white rounded-lg shadow-md border border-gray-200 px-3 py-1.5 text-sm">
-        <span className="font-bold text-gray-900">{mapReports.length}</span>
-        <span className="text-gray-500 ml-1">reports</span>
+      <div className="absolute top-3 right-14 z-10 bg-white dark:bg-gray-900 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm">
+        <span className="font-bold text-gray-900 dark:text-white">{mapReports.length}</span>
+        <span className="text-gray-500 dark:text-gray-400 ml-1">reports</span>
       </div>
 
       {view === "map" ? (
@@ -93,6 +93,9 @@ export default function HomePage() {
           ) : (
             reports.map((r) => <ReportCard key={r.ticket_id} report={r} />)
           )}
+          <p className="text-center text-xs text-gray-400 py-4 px-2">
+            The collectors are not paid officially. Please donate to them if you wish to.
+          </p>
         </div>
       )}
     </div>

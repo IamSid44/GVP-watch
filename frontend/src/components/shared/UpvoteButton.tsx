@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ThumbsUp } from "lucide-react";
+import { ArrowBigUp } from "lucide-react";
 import { upvoteReport } from "../../api/reports";
 
 function getFingerprint(): string {
@@ -33,14 +33,15 @@ export default function UpvoteButton({
   return (
     <button
       onClick={handleUpvote}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
         voted
-          ? "bg-green-100 text-green-700 cursor-default"
-          : "bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer"
+          ? "bg-orange-100 text-orange-600 cursor-default"
+          : "bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-orange-500 cursor-pointer"
       }`}
     >
-      <ThumbsUp size={16} />
-      {upvotes}
+      <ArrowBigUp size={18} className={voted ? "fill-orange-500" : ""} />
+      <span>{upvotes}</span>
+      <span className="text-xs font-normal ml-0.5">upvotes</span>
     </button>
   );
 }

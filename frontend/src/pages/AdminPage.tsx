@@ -10,7 +10,7 @@ export default function AdminPage() {
   const [token, setToken] = useState(localStorage.getItem("gvp_admin_token") || "");
   const [keyInput, setKeyInput] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"open" | "pending">("open");
+  const [activeTab, setActiveTab] = useState<"open" | "needs_verification" | "pending">("open");
   const [resolveModalTicketId, setResolveModalTicketId] = useState<string | null>(null);
   const [resolvePhoto, setResolvePhoto] = useState<File | null>(null);
   const [resolvePhotoPreview, setResolvePhotoPreview] = useState<string | null>(null);
@@ -45,6 +45,15 @@ export default function AdminPage() {
       return data;
     },
     enabled: isLoggedIn && activeTab === "open",
+  });
+
+  const { data: needsVerification = [], isLoading: verificationLoading } = useQuery({
+    queryKey: ["admin", "needs_verification"],
+    queryFn: async () => {
+      const { data } = await api.get<Report[]>("/api/admin/reports?status=PENDING_VERIFICATION");
+      return data;
+    },
+    enabled: isLoggedIn && activeTab === "needs_verification",
   });
 
   const { data: pending = [], isLoading: pendingLoading } = useQuery({
@@ -92,6 +101,7 @@ export default function AdminPage() {
         headers: { "Content-Type": undefined },
       });
       queryClient.invalidateQueries({ queryKey: ["admin", "open"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "needs_verification"] });
       queryClient.invalidateQueries({ queryKey: ["reports", "map"] });
       closeResolveModal();
     } finally {
@@ -134,8 +144,8 @@ export default function AdminPage() {
     );
   }
 
-  const isLoading = activeTab === "open" ? openLoading : pendingLoading;
-  const reports = activeTab === "open" ? openReports : pending;
+  const isLoading = activeTab === "open" ? openLoading : activeTab === "needs_verification" ? verificationLoading : pendingLoading;
+  const reports = activeTab === "open" ? openReports : activeTab === "needs_verification" ? needsVerification : pending;
 
   return (
     <div className="max-w-3xl mx-auto w-full p-4 space-y-4 pb-20">
@@ -159,7 +169,17 @@ export default function AdminPage() {
               : "text-gray-600 hover:bg-gray-50"
           }`}
         >
-          Open Reports
+          Open
+        </button>
+        <button
+          onClick={() => setActiveTab("needs_verification")}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "needs_verification"
+              ? "bg-amber-500 text-white"
+              : "text-amber-600 hover:bg-amber-50"
+          }`}
+        >
+          Needs Verify
         </button>
         <button
           onClick={() => setActiveTab("pending")}
@@ -169,7 +189,7 @@ export default function AdminPage() {
               : "text-gray-600 hover:bg-gray-50"
           }`}
         >
-          Pending Moderation
+          Moderation
         </button>
       </div>
 
@@ -194,54 +214,74 @@ export default function AdminPage() {
               key={report.ticket_id}
               className="bg-white border border-gray-200 rounded-xl overflow-hidden"
             >
-              <div className="flex">
-                {report.photo_url && (
-                  <img
-                    src={report.photo_url}
-                    alt=""
-                    className="w-32 h-32 object-cover flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 p-4 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <SeverityBadge severity={report.severity_score} />
-                    <StatusBadge status={report.status} />
-                    <span className="text-xs text-gray-400 font-mono truncate">
-                      {report.ticket_id}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-1 line-clamp-2">
-                    {report.description || report.category || "No description"}
-                  </p>
-                  {report.address && (
-                    <p className="text-xs text-gray-500 truncate">{report.address}</p>
+              <div className="flex flex-col">
+                <div className="flex">
+                  {report.photo_url && (
+                    <img
+                      src={report.photo_url}
+                      alt=""
+                      className="w-32 h-32 object-cover flex-shrink-0"
+                    />
                   )}
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    {activeTab === "open" ? (
-                      <button
-                        onClick={() => openResolveModal(report.ticket_id)}
-                        className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 inline-flex items-center gap-1"
-                      >
-                        <CheckSquare size={14} /> Mark Resolved
-                      </button>
-                    ) : (
-                      <>
+                  <div className="flex-1 p-4 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <SeverityBadge severity={report.severity_score} />
+                      <StatusBadge status={report.status} />
+                      <span className="text-xs text-gray-400 font-mono truncate">
+                        {report.ticket_id}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-1 line-clamp-2">
+                      {report.description || report.category || "No description"}
+                    </p>
+                    {report.address && (
+                      <p className="text-xs text-gray-500 truncate">{report.address}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      {activeTab === "open" ? (
                         <button
-                          onClick={() => moderate(report.ticket_id, "approve")}
+                          onClick={() => openResolveModal(report.ticket_id)}
                           className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 inline-flex items-center gap-1"
                         >
-                          <CheckCircle size={14} /> Approve
+                          <CheckSquare size={14} /> Mark Resolved
                         </button>
+                      ) : activeTab === "needs_verification" ? (
                         <button
-                          onClick={() => moderate(report.ticket_id, "reject")}
-                          className="bg-red-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-700 inline-flex items-center gap-1"
+                          onClick={() => openResolveModal(report.ticket_id)}
+                          className="bg-amber-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-600 inline-flex items-center gap-1"
                         >
-                          <XCircle size={14} /> Reject
+                          <CheckSquare size={14} /> Confirm &amp; Resolve
                         </button>
-                      </>
-                    )}
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => moderate(report.ticket_id, "approve")}
+                            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 inline-flex items-center gap-1"
+                          >
+                            <CheckCircle size={14} /> Approve
+                          </button>
+                          <button
+                            onClick={() => moderate(report.ticket_id, "reject")}
+                            className="bg-red-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-700 inline-flex items-center gap-1"
+                          >
+                            <XCircle size={14} /> Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {/* Show citizen's cleanup photo for needs_verification tab */}
+                {activeTab === "needs_verification" && (report as Report & { citizen_resolution_photo_url?: string }).citizen_resolution_photo_url && (
+                  <div className="px-4 pb-4">
+                    <p className="text-xs text-amber-700 font-medium mb-1">Citizen's cleanup photo:</p>
+                    <img
+                      src={(report as Report & { citizen_resolution_photo_url?: string }).citizen_resolution_photo_url}
+                      alt="Citizen cleanup"
+                      className="w-full h-40 object-cover rounded-xl ring-2 ring-amber-300"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           ))}

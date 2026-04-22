@@ -17,7 +17,7 @@ The schema is designed to be PostgreSQL/PostGIS-compatible in the future.
 
 from sqlalchemy import (
     create_engine, Column, String, Integer, Float, DateTime, Text,
-    ForeignKey, Boolean, JSON, Enum, Table, UniqueConstraint, Index
+    ForeignKey, Boolean, JSON, Enum, Table, UniqueConstraint, Index, text
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -233,7 +233,8 @@ class Ticket(Base):
     reporter_name = Column(String(100))
 
     # Resolution verification
-    resolution_photo_url = Column(String(500))  # Photo uploaded when marking resolved
+    resolution_photo_url = Column(String(500))  # Admin verification photo
+    citizen_resolution_photo_url = Column(String(500))  # Citizen cleanup photo
 
     # Timestamps for timeline tracking
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -379,9 +380,12 @@ def init_db():
     # Add resolution_photo_url column to existing databases that predate it
     with engine.connect() as conn:
         try:
-            conn.execute(
-                "ALTER TABLE tickets ADD COLUMN resolution_photo_url VARCHAR(500)"
-            )
+            conn.execute(text("ALTER TABLE tickets ADD COLUMN resolution_photo_url VARCHAR(500)"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+        try:
+            conn.execute(text("ALTER TABLE tickets ADD COLUMN citizen_resolution_photo_url VARCHAR(500)"))
             conn.commit()
         except Exception:
             pass  # Column already exists
