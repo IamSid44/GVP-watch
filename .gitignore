@@ -84,3 +84,5 @@ backend/data/ghmc-wards.geojson
 
 # Claude
 .claude/
+
+backend/data/overpass_wards.json

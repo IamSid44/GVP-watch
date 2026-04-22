@@ -1,25 +1,26 @@
 """
 Seed Ward Data for Serilingampally Zone
 ----------------------------------------
-Downloads the GHMC ward boundary GeoJSON from datameet/Municipal_Spatial_Data,
-filters for Serilingampally-zone wards, computes each ward's centroid, and
-inserts Ward records into the database.
+Fetches GHMC ward boundary relations from the OpenStreetMap Overpass API
+for the Serilingampally constituency bounding box, converts OSM relation
+geometry to GeoJSON polygons, and inserts Ward records into the database.
+
+Data source: OpenStreetMap contributors, ODbL licence.
 
 Usage:
     cd backend
     python -m data.seed_wards          # normal run
     python -m data.seed_wards --dry    # preview without DB writes
+    python -m data.seed_wards --reset  # delete existing wards first, then seed
 """
 
 import json
-import os
+import math
 import sys
 import urllib.request
+import urllib.parse
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Ensure the backend package is importable when running as  python -m data.seed_wards
-# ---------------------------------------------------------------------------
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -27,295 +28,243 @@ if str(BACKEND_DIR) not in sys.path:
 from database import SessionLocal, Ward, init_db  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Constants
+# Overpass query — all admin-level-10 relations in Serilingampally bbox
 # ---------------------------------------------------------------------------
-GEOJSON_URL = (
-    "https://raw.githubusercontent.com/datameet/"
-    "Municipal_Spatial_Data/master/Hyderabad/ghmc-wards.geojson"
-)
-CACHE_PATH = Path(__file__).resolve().parent / "ghmc-wards.geojson"
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+SERILINGAMPALLY_BBOX = "17.40,78.26,17.55,78.44"  # south,west,north,east
 
-# Known Serilingampally-zone ward name fragments (case-insensitive).
-# These cover the major colonies/areas in the zone regardless of which
-# delimitation the GeoJSON uses (old 150-ward or new 150/200 scheme).
-SERILINGAMPALLY_NAME_PATTERNS = [
-    "gachibowli",
-    "nallagandla",
-    "serilingampally",
-    "serlingampally",
-    "serilingampalli",
-    "masjid banda",
-    "masjid-banda",
-    "sriram nagar",
-    "sri ram nagar",
-    "kondapur",
-    "hafeezpet",
-    "hafizpet",
-    "madeenaguda",
-    "madinaguda",
-    "chanda nagar",
-    "chandanagar",
-    "miyapur",
-    "hitec city",
-    "hi-tech city",
-    "hitech city",
-    "madhapur",
-    "ayyappa society",
-    "whitefields",
-    "white fields",
-    "tellapur",
-    "gopanpally",
-    "narsingi",
-    "kokapet",
-    "khajaguda",
-    "raidurgam",
-    "raidurg",
-    "durgam cheruvu",
-    "financial district",
-    "nanakramguda",
-    "puppalguda",
-    "manchirevula",
-    "kismatpur",
-    "rajendranagar",
-    "gandipet",
-    "budvel",
-    "shamshabad",
-    "banjara hills",
-    "jubilee hills",
-    "film nagar",
-]
+OVERPASS_QUERY = f"""
+[out:json][timeout:60];
+relation["boundary"="administrative"]["admin_level"="10"]({SERILINGAMPALLY_BBOX});
+out geom;
+"""
 
-# Fallback: if the GeoJSON carries numeric ward IDs that map to the
-# Serilingampally zone under the old 150-ward scheme, these are roughly
-# wards 1-18 in the old numbering.  Under the 2020 delimitation the range
-# is approximately 127-141 or 225-241 depending on the source.
-SERILINGAMPALLY_WARD_RANGES = [
-    range(1, 19),       # old 150-ward numbering (zone 1)
-    range(127, 151),    # alternate old numbering
-    range(225, 242),    # 2020 delimitation numbering
-]
+CACHE_PATH = Path(__file__).resolve().parent / "overpass_wards.json"
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fetch
 # ---------------------------------------------------------------------------
 
-def download_geojson() -> dict:
-    """Download (or load from cache) the full GHMC wards GeoJSON."""
+def fetch_overpass() -> dict:
     if CACHE_PATH.exists():
-        print(f"[info] Loading cached GeoJSON from {CACHE_PATH}")
+        print(f"[info] Loading cached Overpass data from {CACHE_PATH}")
         with open(CACHE_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    print(f"[info] Downloading GeoJSON from {GEOJSON_URL} ...")
-    req = urllib.request.Request(GEOJSON_URL, headers={"User-Agent": "GVP-Watch/1.0"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    print(f"[info] Querying Overpass API for Serilingampally wards…")
+    encoded = urllib.parse.urlencode({"data": OVERPASS_QUERY})
+    url = f"{OVERPASS_URL}?{encoded}"
+    req = urllib.request.Request(url, headers={"User-Agent": "GVP-Watch/1.0"})
+    with urllib.request.urlopen(req, timeout=90) as resp:
         raw = resp.read().decode("utf-8")
 
-    # Cache locally so subsequent runs are instant
-    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    data = json.loads(raw)
     with open(CACHE_PATH, "w", encoding="utf-8") as f:
         f.write(raw)
-    print(f"[info] Cached GeoJSON to {CACHE_PATH}")
+    print(f"[info] Cached Overpass response to {CACHE_PATH}")
+    return data
 
-    return json.loads(raw)
+
+# ---------------------------------------------------------------------------
+# OSM relation → GeoJSON geometry
+# ---------------------------------------------------------------------------
+
+def _pt_dist2(a, b):
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 
-def detect_property_keys(features: list) -> dict:
+def assemble_ring(outer_ways: list) -> list:
     """
-    Auto-detect the property key names used in the GeoJSON.
-    Returns a dict with normalised keys:
-        ward_name, ward_no, zone, circle
-    mapped to the actual property key strings found in the data.
+    Assemble a list of way-geometry arrays (each [{lat, lon}, …]) into a
+    single closed GeoJSON ring [[lng, lat], …].
+
+    Uses a greedy nearest-endpoint chain algorithm that handles ways given
+    in arbitrary order and orientation.
     """
-    if not features:
-        raise ValueError("GeoJSON has no features")
+    # Convert each way to a [lng, lat] segment
+    segments = [[[p["lon"], p["lat"]] for p in w["geometry"]] for w in outer_ways]
 
-    sample_keys = list(features[0]["properties"].keys())
-    print(f"[info] GeoJSON property keys: {sample_keys}")
+    if not segments:
+        return []
 
-    mapping = {}
-    for key in sample_keys:
-        kl = key.lower().replace(" ", "_")
-        if kl in ("ward_name", "wardname", "ward_na", "name"):
-            mapping["ward_name"] = key
-        elif kl in ("ward_no", "wardno", "ward_number", "ward_num", "ward_id"):
-            mapping["ward_no"] = key
-        elif kl in ("zone", "zone_name", "zonename"):
-            mapping["zone"] = key
-        elif kl in ("circle", "circle_name", "circlename"):
-            mapping["circle"] = key
+    ring = list(segments[0])
+    used = {0}
 
-    print(f"[info] Detected property mapping: {mapping}")
-    return mapping
+    while len(used) < len(segments):
+        end = ring[-1]
+        best_i, best_rev, best_d = None, False, math.inf
 
+        for i, seg in enumerate(segments):
+            if i in used:
+                continue
+            d_fwd = _pt_dist2(seg[0], end)
+            d_rev = _pt_dist2(seg[-1], end)
+            if d_fwd < best_d:
+                best_d, best_i, best_rev = d_fwd, i, False
+            if d_rev < best_d:
+                best_d, best_i, best_rev = d_rev, i, True
 
-def _flatten_coords(coords):
-    """Recursively yield all (lng, lat) pairs from a GeoJSON coordinate structure."""
-    if isinstance(coords[0], (int, float)):
-        yield coords  # single point [lng, lat]
-    else:
-        for item in coords:
-            yield from _flatten_coords(item)
+        seg = segments[best_i]
+        if best_rev:
+            seg = seg[::-1]
+        ring.extend(seg[1:])   # drop first point; it's the same as current tail
+        used.add(best_i)
 
+    # Close ring
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
 
-def compute_centroid(geometry: dict) -> tuple:
-    """
-    Compute a simple centroid (arithmetic mean) of all coordinate points
-    in a Polygon or MultiPolygon geometry.
-    Returns (lat, lng).
-    """
-    points = list(_flatten_coords(geometry["coordinates"]))
-    if not points:
-        return (0.0, 0.0)
-    avg_lng = sum(p[0] for p in points) / len(points)
-    avg_lat = sum(p[1] for p in points) / len(points)
-    return (avg_lat, avg_lng)
+    return ring
 
 
-def matches_serilingampally(props: dict, key_map: dict) -> bool:
-    """
-    Return True if this feature belongs to the Serilingampally zone.
-    Strategy (in priority order):
-      1. If a 'zone' property exists and contains 'serilingampally' -> match.
-      2. If the ward name matches any known Serilingampally area name -> match.
-      3. If the ward number falls in a known Serilingampally range -> match.
-    """
-    # --- Strategy 1: zone property ---
-    zone_key = key_map.get("zone")
-    if zone_key and props.get(zone_key):
-        zone_val = str(props[zone_key]).lower()
-        if "serilingampally" in zone_val or "serlingampally" in zone_val:
-            return True
-        # If zone exists but is a different zone, reject immediately
-        if zone_val.strip():
-            return False
+def relation_to_geojson(element: dict) -> dict | None:
+    """Convert an OSM relation element (with embedded geometry) to a GeoJSON geometry."""
+    outer = [m for m in element.get("members", [])
+             if m.get("role") == "outer" and m.get("geometry")]
+    inner = [m for m in element.get("members", [])
+             if m.get("role") == "inner" and m.get("geometry")]
 
-    # --- Strategy 2: name matching ---
-    name_key = key_map.get("ward_name")
-    if name_key and props.get(name_key):
-        name_val = str(props[name_key]).lower()
-        for pattern in SERILINGAMPALLY_NAME_PATTERNS:
-            if pattern in name_val:
-                return True
+    if not outer:
+        return None
 
-    # --- Strategy 3: ward number range ---
-    no_key = key_map.get("ward_no")
-    if no_key and props.get(no_key):
-        try:
-            ward_num = int(props[no_key])
-            for r in SERILINGAMPALLY_WARD_RANGES:
-                if ward_num in r:
-                    return True
-        except (ValueError, TypeError):
-            pass
+    # Group outer ways into separate rings (a relation can have multiple outer rings
+    # if it's a MultiPolygon — e.g. a ward with a detached enclave).
+    # Simple heuristic: if the outer ways form one continuous chain → Polygon;
+    # otherwise build each disjoint chain as a separate ring → MultiPolygon.
+    outer_ring = assemble_ring(outer)
+    if not outer_ring:
+        return None
 
-    return False
+    rings = [outer_ring]
+    for m in inner:
+        hole = assemble_ring([m])
+        if hole:
+            rings.append(hole)
+
+    return {"type": "Polygon", "coordinates": rings}
+
+
+def compute_centroid(geometry: dict) -> tuple[float, float]:
+    """Arithmetic centroid of all coordinate points. Returns (lat, lng)."""
+    coords = geometry["coordinates"]
+
+    def flatten(c):
+        if isinstance(c[0], (int, float)):
+            yield c
+        else:
+            for item in c:
+                yield from flatten(item)
+
+    pts = list(flatten(coords))
+    if not pts:
+        return 0.0, 0.0
+    return (
+        sum(p[1] for p in pts) / len(pts),
+        sum(p[0] for p in pts) / len(pts),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ward-number extraction
+# ---------------------------------------------------------------------------
+
+def extract_ward_number(name: str) -> int | None:
+    """'Ward 106 Serilingampally' → 106"""
+    import re
+    m = re.search(r"\b(\d+)\b", name)
+    return int(m.group(1)) if m else None
 
 
 # ---------------------------------------------------------------------------
 # Main seeding logic
 # ---------------------------------------------------------------------------
 
-def seed_wards(dry_run: bool = False):
-    geojson = download_geojson()
-    features = geojson.get("features", [])
-    print(f"[info] Total features in GeoJSON: {len(features)}")
+def seed_wards(dry_run: bool = False, reset: bool = False):
+    data = fetch_overpass()
+    elements = data.get("elements", [])
+    print(f"[info] Overpass returned {len(elements)} relation(s)")
 
-    if not features:
-        print("[error] No features found in GeoJSON. Aborting.")
+    if not elements:
+        print("[error] No elements returned. Check the Overpass query or bbox.")
         return
 
-    # Print a few sample properties for debugging
-    for i, f in enumerate(features[:3]):
-        print(f"[debug] Feature {i} properties: {json.dumps(f['properties'], indent=2)}")
-
-    key_map = detect_property_keys(features)
-
-    # Filter for Serilingampally
-    serilingampally_features = []
-    for feat in features:
-        if matches_serilingampally(feat["properties"], key_map):
-            serilingampally_features.append(feat)
-
-    print(f"[info] Matched {len(serilingampally_features)} Serilingampally ward(s)")
-
-    if not serilingampally_features:
-        print("[warn] No Serilingampally wards matched. Listing all ward names for debugging:")
-        name_key = key_map.get("ward_name", "")
-        for feat in features:
-            name = feat["properties"].get(name_key, "?")
-            no_key = key_map.get("ward_no", "")
-            num = feat["properties"].get(no_key, "?")
-            print(f"        Ward {num}: {name}")
-        return
-
-    if dry_run:
-        print("\n[dry-run] Would insert the following wards:")
-        for feat in serilingampally_features:
-            props = feat["properties"]
-            name = props.get(key_map.get("ward_name", ""), "Unknown")
-            num = props.get(key_map.get("ward_no", ""), None)
-            lat, lng = compute_centroid(feat["geometry"])
-            print(f"    Ward {num}: {name}  center=({lat:.6f}, {lng:.6f})")
-        return
-
-    # Database insertion
     init_db()
     db = SessionLocal()
 
     try:
-        inserted = 0
-        skipped = 0
-        for feat in serilingampally_features:
-            props = feat["properties"]
-            ward_name = str(props.get(key_map.get("ward_name", ""), "Unknown")).strip()
-            ward_no_raw = props.get(key_map.get("ward_no", ""), None)
-            circle_val = props.get(key_map.get("circle", ""), None)
-            center_lat, center_lng = compute_centroid(feat["geometry"])
+        if reset:
+            deleted = db.query(Ward).delete()
+            db.commit()
+            print(f"[reset] Deleted {deleted} existing ward(s).")
 
-            ward_number = None
-            if ward_no_raw is not None:
-                try:
-                    ward_number = int(ward_no_raw)
-                except (ValueError, TypeError):
-                    pass
+        inserted = skipped = errors = 0
 
-            # Skip if a ward with the same name already exists
-            existing = db.query(Ward).filter(Ward.ward_name == ward_name).first()
-            if existing:
-                print(f"[skip] Ward already exists: {ward_name}")
-                skipped += 1
+        for el in elements:
+            tags = el.get("tags", {})
+            name = tags.get("name", "").strip()
+            if not name:
                 continue
 
-            ward = Ward(
-                ward_name=ward_name,
-                ward_number=ward_number,
-                circle=str(circle_val) if circle_val else None,
-                zone="Serilingampally",
-                boundary_geojson=feat["geometry"],
-                center_lat=center_lat,
-                center_lng=center_lng,
-            )
-            db.add(ward)
-            inserted += 1
-            print(f"[add]  Ward {ward_number}: {ward_name}  "
-                  f"center=({center_lat:.6f}, {center_lng:.6f})")
+            geometry = relation_to_geojson(el)
+            if geometry is None:
+                print(f"[warn] Could not build geometry for: {name}")
+                errors += 1
+                continue
 
-        db.commit()
-        print(f"\n[done] Inserted {inserted} ward(s), skipped {skipped} duplicate(s).")
+            center_lat, center_lng = compute_centroid(geometry)
+            ward_number = extract_ward_number(name)
+
+            if dry_run:
+                print(f"  [dry] {name}  #{ward_number}  "
+                      f"center=({center_lat:.5f}, {center_lng:.5f})  "
+                      f"pts={len(geometry['coordinates'][0])}")
+                inserted += 1
+                continue
+
+            existing = db.query(Ward).filter(Ward.ward_name == name).first()
+            if existing:
+                # Update geometry in case it improved
+                existing.boundary_geojson = geometry
+                existing.center_lat = center_lat
+                existing.center_lng = center_lng
+                if ward_number:
+                    existing.ward_number = ward_number
+                print(f"[upd]  {name}")
+                skipped += 1
+            else:
+                ward = Ward(
+                    ward_name=name,
+                    ward_number=ward_number,
+                    zone="Serilingampally",
+                    boundary_geojson=geometry,
+                    center_lat=center_lat,
+                    center_lng=center_lng,
+                )
+                db.add(ward)
+                print(f"[add]  {name}  #{ward_number}  "
+                      f"center=({center_lat:.5f}, {center_lng:.5f})")
+                inserted += 1
+
+        if not dry_run:
+            db.commit()
+
+        action = "Would insert" if dry_run else "Inserted"
+        print(f"\n[done] {action} {inserted}, updated {skipped}, "
+              f"failed {errors}  (total={len(elements)})")
 
     except Exception as exc:
         db.rollback()
-        print(f"[error] Database error: {exc}")
+        print(f"[error] {exc}")
         raise
     finally:
         db.close()
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point
+# CLI
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     dry = "--dry" in sys.argv
-    seed_wards(dry_run=dry)
+    reset = "--reset" in sys.argv
+    seed_wards(dry_run=dry, reset=reset)

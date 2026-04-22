@@ -232,6 +232,9 @@ class Ticket(Base):
     category = Column(String(50))
     reporter_name = Column(String(100))
 
+    # Resolution verification
+    resolution_photo_url = Column(String(500))  # Photo uploaded when marking resolved
+
     # Timestamps for timeline tracking
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     photo_received_at = Column(DateTime)
@@ -373,6 +376,15 @@ class Representative(Base):
 def init_db():
     """Create all tables in the database."""
     Base.metadata.create_all(bind=engine)
+    # Add resolution_photo_url column to existing databases that predate it
+    with engine.connect() as conn:
+        try:
+            conn.execute(
+                "ALTER TABLE tickets ADD COLUMN resolution_photo_url VARCHAR(500)"
+            )
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
 
 
 def get_db():

@@ -148,17 +148,31 @@ async def get_report(ticket_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{ticket_id}/mark-resolved", response_model=ReportResponse)
-async def mark_report_resolved(ticket_id: str, db: Session = Depends(get_db)):
-    """Public endpoint to mark a report as cleaned up / resolved."""
+async def mark_report_resolved(
+    ticket_id: str,
+    photo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Public endpoint to mark a report as cleaned up / resolved. Requires a verification photo."""
     ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Report not found")
     if ticket.status == "RESOLVED":
         return _ticket_to_response(ticket, db)
 
+    # Save resolution verification photo
+    ext = os.path.splitext(photo.filename)[1] if photo.filename else ".jpg"
+    filename = f"{ticket_id}_resolved{ext}"
+    filepath = UPLOAD_DIR / filename
+    content = await photo.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    resolution_photo_url = f"/uploads/{filename}"
+
     old_status = ticket.status
     ticket.status = "RESOLVED"
     ticket.resolved_at = datetime.utcnow()
+    ticket.resolution_photo_url = resolution_photo_url
     action = ActionLog(
         action_log_id=str(uuid.uuid4()),
         ticket_id=ticket_id,
@@ -206,6 +220,7 @@ def _ticket_to_response(ticket: Ticket, db: Session) -> ReportResponse:
         latitude=ticket.latitude,
         longitude=ticket.longitude,
         photo_url=ticket.photo_url,
+        resolution_photo_url=ticket.resolution_photo_url,
         severity_score=ticket.severity_score,
         status=ticket.status,
         description=ticket.description,

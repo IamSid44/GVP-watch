@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, Loader2, CheckCircle, XCircle, LogOut, CheckSquare } from "lucide-react";
+import { Shield, Loader2, CheckCircle, XCircle, LogOut, CheckSquare, Upload, X, Camera } from "lucide-react";
 import api from "../api/client";
 import type { Report } from "../types";
 import SeverityBadge from "../components/shared/SeverityBadge";
@@ -11,6 +11,11 @@ export default function AdminPage() {
   const [keyInput, setKeyInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [activeTab, setActiveTab] = useState<"open" | "pending">("open");
+  const [resolveModalTicketId, setResolveModalTicketId] = useState<string | null>(null);
+  const [resolvePhoto, setResolvePhoto] = useState<File | null>(null);
+  const [resolvePhotoPreview, setResolvePhotoPreview] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const isLoggedIn = !!token;
@@ -58,10 +63,40 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin", "pending"] });
   };
 
-  const resolve = async (ticketId: string) => {
-    await api.post(`/api/admin/reports/${ticketId}/resolve`);
-    queryClient.invalidateQueries({ queryKey: ["admin", "open"] });
-    queryClient.invalidateQueries({ queryKey: ["reports", "map"] });
+  const openResolveModal = (ticketId: string) => {
+    setResolveModalTicketId(ticketId);
+    setResolvePhoto(null);
+    setResolvePhotoPreview(null);
+  };
+
+  const closeResolveModal = () => {
+    setResolveModalTicketId(null);
+    setResolvePhoto(null);
+    setResolvePhotoPreview(null);
+  };
+
+  const onPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setResolvePhoto(file);
+    setResolvePhotoPreview(URL.createObjectURL(file));
+  };
+
+  const submitResolve = async () => {
+    if (!resolveModalTicketId || !resolvePhoto) return;
+    setResolving(true);
+    try {
+      const form = new FormData();
+      form.append("photo", resolvePhoto);
+      await api.post(`/api/admin/reports/${resolveModalTicketId}/resolve`, form, {
+        headers: { "Content-Type": undefined },
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin", "open"] });
+      queryClient.invalidateQueries({ queryKey: ["reports", "map"] });
+      closeResolveModal();
+    } finally {
+      setResolving(false);
+    }
   };
 
   if (!isLoggedIn) {
@@ -184,7 +219,7 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {activeTab === "open" ? (
                       <button
-                        onClick={() => resolve(report.ticket_id)}
+                        onClick={() => openResolveModal(report.ticket_id)}
                         className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 inline-flex items-center gap-1"
                       >
                         <CheckSquare size={14} /> Mark Resolved
@@ -210,6 +245,79 @@ export default function AdminPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Resolve with photo modal */}
+      {resolveModalTicketId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">Upload Verification Photo</h2>
+              <button onClick={closeResolveModal} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Upload a photo showing the area has been cleaned up. This will be used to verify the resolution.
+              </p>
+
+              {resolvePhotoPreview ? (
+                <div className="relative">
+                  <img
+                    src={resolvePhotoPreview}
+                    alt="Resolution preview"
+                    className="w-full h-48 object-cover rounded-xl"
+                  />
+                  <button
+                    onClick={() => { setResolvePhoto(null); setResolvePhotoPreview(null); }}
+                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full h-40 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-400 hover:text-green-600 transition-colors"
+                >
+                  <Camera size={32} />
+                  <span className="text-sm font-medium">Tap to upload photo</span>
+                  <span className="text-xs text-gray-400">JPG, PNG, HEIC accepted</span>
+                </button>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={onPhotoSelected}
+              />
+            </div>
+            <div className="flex gap-3 p-4 border-t border-gray-100">
+              <button
+                onClick={closeResolveModal}
+                className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitResolve}
+                disabled={!resolvePhoto || resolving}
+                className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              >
+                {resolving ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Upload size={16} />
+                )}
+                {resolving ? "Uploading…" : "Confirm Resolved"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

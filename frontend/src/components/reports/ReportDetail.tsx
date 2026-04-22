@@ -22,13 +22,41 @@ export default function ReportDetail({ report }: { report: Report }) {
 
   return (
     <div className="space-y-6">
-      {/* Photo */}
+      {/* Photos */}
       {report.photo_url && (
-        <img
-          src={report.photo_url}
-          alt="Report photo"
-          className="w-full h-64 object-cover rounded-xl"
-        />
+        <div className="space-y-2">
+          <img
+            src={report.photo_url}
+            alt="Report photo"
+            className="w-full h-64 object-cover rounded-xl"
+          />
+          {report.resolution_photo_url && (
+            <div>
+              <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                Verified clean — resolution photo
+              </p>
+              <img
+                src={report.resolution_photo_url}
+                alt="Resolution verification photo"
+                className="w-full h-64 object-cover rounded-xl ring-2 ring-green-400"
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {!report.photo_url && report.resolution_photo_url && (
+        <div>
+          <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            Verified clean — resolution photo
+          </p>
+          <img
+            src={report.resolution_photo_url}
+            alt="Resolution verification photo"
+            className="w-full h-64 object-cover rounded-xl ring-2 ring-green-400"
+          />
+        </div>
       )}
 
       {/* Badges */}

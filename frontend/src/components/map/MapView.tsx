@@ -5,15 +5,32 @@ import { SEVERITY_COLORS } from "../../types";
 
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY as string;
 
-const MAP_CENTER = { lat: 17.4931, lng: 78.302 };
+// Center of Ward 106 Serilingampally — the namesake ward of the constituency
+const MAP_CENTER = { lat: 17.4742, lng: 78.3327 };
+
+// Tight bbox derived from the actual OSM ward geometries (wards 69, 92–130).
+// Adds ~0.005° padding on each side so ward borders aren't clipped.
+const SERILINGAMPALLY_BOUNDS = {
+  north: 17.5600,
+  south: 17.3900,
+  east:  78.4650,
+  west:  78.2350,
+};
+
 const MAP_OPTIONS: google.maps.MapOptions = {
-  zoom: 12,
+  zoom: 13,
+  minZoom: 12,
+  maxZoom: 19,
   disableDefaultUI: false,
   zoomControl: true,
   mapTypeControl: false,
   streetViewControl: false,
   fullscreenControl: false,
   clickableIcons: false,
+  restriction: {
+    latLngBounds: SERILINGAMPALLY_BOUNDS,
+    strictBounds: true,
+  },
 };
 
 interface Props {
@@ -30,7 +47,7 @@ const SEVERITY_SIZE: Record<string, number> = {
 
 export default function MapView({ reports, onMarkerClick, wardBoundaries }: Props) {
   const mapRef = useRef<google.maps.Map | null>(null);
-  const [zoom, setZoom] = useState(12);
+  const [zoom, setZoom] = useState(13);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_KEY,
@@ -54,11 +71,11 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
             const path = ring.map(([lng, lat]) => ({ lat, lng }));
             const polygon = new google.maps.Polygon({
               paths: path,
-              strokeColor: "#3b82f6",
-              strokeOpacity: 0.7,
-              strokeWeight: 1.5,
+              strokeColor: "#1d4ed8",
+              strokeOpacity: 1.0,
+              strokeWeight: 2.5,
               fillColor: "#3b82f6",
-              fillOpacity: 0.04,
+              fillOpacity: 0.07,
               map,
             });
             if (props?.ward_name) {
@@ -160,9 +177,15 @@ function SingleMarker({
   report: ReportMapItem;
   onClick?: (id: string) => void;
 }) {
-  const color = SEVERITY_COLORS[report.severity_score ?? "MEDIUM"] ?? "#9ca3af";
+  const isResolved = report.status === "RESOLVED";
+  const isUnresponsive = report.status === "UNRESPONSIVE";
+  const color = isResolved
+    ? "#22c55e"
+    : isUnresponsive
+    ? "#6b7280"
+    : (SEVERITY_COLORS[report.severity_score ?? "MEDIUM"] ?? "#9ca3af");
   const size = SEVERITY_SIZE[report.severity_score ?? "MEDIUM"] ?? 12;
-  const opacity = report.status === "RESOLVED" || report.status === "UNRESPONSIVE" ? 0.45 : 1;
+  const opacity = isUnresponsive ? 0.6 : 1;
 
   return (
     <OverlayView

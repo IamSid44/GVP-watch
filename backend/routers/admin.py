@@ -2,16 +2,17 @@
 Admin Router — Moderation panel endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import uuid
 import hashlib
+import os
 
 from database import get_db, Ticket, ActionLog
 from models import ReportResponse, AdminLoginRequest, AdminActionRequest
-from config import ADMIN_KEY
+from config import ADMIN_KEY, UPLOAD_DIR
 from routers.reports import _ticket_to_response
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -121,17 +122,28 @@ async def reject_report(
 @router.post("/reports/{ticket_id}/resolve", response_model=ReportResponse)
 async def resolve_report(
     ticket_id: str,
+    photo: UploadFile = File(...),
     db: Session = Depends(get_db),
     _: None = Depends(_verify_admin),
 ):
-    """Mark a report as resolved (admin action)."""
+    """Mark a report as resolved (admin action). Requires a verification photo."""
     ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    # Save resolution verification photo
+    ext = os.path.splitext(photo.filename)[1] if photo.filename else ".jpg"
+    filename = f"{ticket_id}_resolved{ext}"
+    filepath = UPLOAD_DIR / filename
+    content = await photo.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    resolution_photo_url = f"/uploads/{filename}"
+
     old_status = ticket.status
     ticket.status = "RESOLVED"
     ticket.resolved_at = datetime.utcnow()
+    ticket.resolution_photo_url = resolution_photo_url
     action = ActionLog(
         action_log_id=str(uuid.uuid4()),
         ticket_id=ticket_id,
