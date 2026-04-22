@@ -6,15 +6,11 @@ import { fetchReport } from "../../api/reports";
 import { fetchWardRepresentatives } from "../../api/wards";
 import { CATEGORY_LABELS, SEVERITY_COLORS } from "../../types";
 import api from "../../api/client";
+import { daysSinceIST } from "../../utils/date";
 
 interface Props {
   ticketId: string;
   onClose: () => void;
-}
-
-function getDaysSince(dateStr: string): number {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
 export default function ReportPopupCard({ ticketId, onClose }: Props) {
@@ -151,7 +147,7 @@ export default function ReportPopupCard({ ticketId, onClose }: Props) {
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 text-center">
                   <p className="text-xl font-bold text-orange-500">
-                    {getDaysSince(report.created_at)}
+                    {daysSinceIST(report.created_at)}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Days old</p>
                 </div>

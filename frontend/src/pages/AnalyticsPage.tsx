@@ -38,8 +38,8 @@ export default function AnalyticsPage() {
   return (
     <div className="max-w-6xl mx-auto w-full p-4 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Analytics</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-300">
           Serilingampally Zone — Waste Management Overview
         </p>
       </div>

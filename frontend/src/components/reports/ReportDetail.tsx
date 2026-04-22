@@ -5,16 +5,7 @@ import SeverityBadge from "../shared/SeverityBadge";
 import StatusBadge from "../shared/StatusBadge";
 import UpvoteButton from "../shared/UpvoteButton";
 import ShareButtons from "../shared/ShareButtons";
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { formatIST as formatDate } from "../../utils/date";
 
 export default function ReportDetail({ report }: { report: Report }) {
   const shareUrl = `${window.location.origin}/report/${report.ticket_id}`;

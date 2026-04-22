@@ -1,10 +1,14 @@
 """
-Seed Representative / Official Data for Serilingampally Zone (wards 104-110).
+Seed Representative / Official Data (prototype phase).
 
-Inserts:
-  - Zone-level: MLA, MP, Zonal Commissioner
-  - Circle-level: two Circle Officers
-  - Ward-level: Corporator + Sanitation Inspector for each of the 7 wards
+Four levels of responsibility shown per ward:
+  1. MLA (zone-wide)
+  2. Zonal Commissioner (zone-wide)
+  3. Ward Corporator (per ward)
+  4. Sanitation Inspector (per ward)
+
+Phone numbers are placeholders (xxx...). Real contact data will be wired up
+once the prototype is approved.
 
 Usage:
     cd backend
@@ -20,8 +24,10 @@ if str(BACKEND_DIR) not in sys.path:
 
 from database import SessionLocal, Representative, Ward, init_db  # noqa: E402
 
+PLACEHOLDER_PHONE = "+91-xxxxx-xxxxx"
+
 # ---------------------------------------------------------------------------
-# Zone / City level — not tied to a specific ward
+# Zone-wide officials (no ward_id — visible for every ward in the jurisdiction)
 # ---------------------------------------------------------------------------
 ZONE_OFFICIALS = [
     {
@@ -29,74 +35,38 @@ ZONE_OFFICIALS = [
         "title": "MLA, Serilingampally Constituency",
         "level": "ZONE",
         "party": "BRS",
-        "phone": "+91-40-23452345",
-        "email": "mla.serilingampally@telangana.gov.in",
-    },
-    {
-        "name": "Konda Vishweshwar Reddy",
-        "title": "Member of Parliament, Chevella",
-        "level": "CITY",
-        "party": "BJP",
-        "phone": "+91-11-23034567",
-        "email": "mp.chevella@parliament.gov.in",
     },
     {
         "name": "Hemanth Sahadeorao Borkhade IAS",
         "title": "Zonal Commissioner, Serilingampally Zone",
         "level": "ZONE",
         "party": None,
-        "phone": "+91-40-23120100",
-        "email": "zc.serilingampally@ghmc.gov.in",
     },
 ]
 
 # ---------------------------------------------------------------------------
-# Circle level — two circles cover the zone
-# ---------------------------------------------------------------------------
-CIRCLE_OFFICIALS = [
-    {
-        "name": "P. Venkat Ramana",
-        "title": "Circle Officer, Serilingampally Circle (20)",
-        "level": "CIRCLE",
-        "party": None,
-        "phone": "+91-40-23118820",
-        "email": "co.circle20@ghmc.gov.in",
-        "circle": "20-SERILINGAMPALLY",
-    },
-    {
-        "name": "M. Rajeshwari Devi",
-        "title": "Circle Officer, Chanda Nagar Circle (21)",
-        "level": "CIRCLE",
-        "party": None,
-        "phone": "+91-40-23118821",
-        "email": "co.circle21@ghmc.gov.in",
-        "circle": "21-CHANDA NAGAR",
-    },
-]
-
-# ---------------------------------------------------------------------------
-# Ward level — Corporator + Sanitation Inspector for each ward
+# Ward-level officials
 # ---------------------------------------------------------------------------
 WARD_OFFICIALS = {
     104: {
         "ward_name": "Kondapur",
-        "corporator": ("K. Srinivasa Rao", "+91-98480-10104"),
-        "sanitation": ("B. Nagaraju", "+91-98480-20104"),
+        "corporator": "K. Srinivasa Rao",
+        "sanitation": "B. Nagaraju",
     },
     105: {
         "ward_name": "Gachibowli",
-        "corporator": ("G. Padma Latha", "+91-98480-10105"),
-        "sanitation": ("T. Ravi Kumar", "+91-98480-20105"),
+        "corporator": "G. Padma Latha",
+        "sanitation": "T. Ravi Kumar",
     },
     106: {
         "ward_name": "Serilingampally",
-        "corporator": ("S. Ramaiah Goud", "+91-98480-10106"),
-        "sanitation": ("L. Anjaiah", "+91-98480-20106"),
+        "corporator": "S. Ramaiah Goud",
+        "sanitation": "L. Anjaiah",
     },
     111: {
         "ward_name": "Bharathi Nagar",
-        "corporator": ("M. Venkatesh Reddy", "+91-98480-10111"),
-        "sanitation": ("A. Suresh Babu", "+91-98480-20111"),
+        "corporator": "M. Venkatesh Reddy",
+        "sanitation": "A. Suresh Babu",
     },
 }
 
@@ -109,7 +79,7 @@ def seed_officials():
         inserted = 0
         skipped = 0
 
-        def _add(name, title, level, party=None, phone=None, email=None, ward_id=None):
+        def _add(name, title, level, party=None, ward_id=None):
             nonlocal inserted, skipped
             existing = db.query(Representative).filter(
                 Representative.name == name,
@@ -124,47 +94,35 @@ def seed_officials():
                 title=title,
                 level=level,
                 party=party,
-                phone=phone,
-                email=email,
+                phone=PLACEHOLDER_PHONE,
+                email=None,
                 ward_id=ward_id,
             )
             db.add(rep)
             inserted += 1
             print(f"[add]  {name} — {title}")
 
-        # Zone / City officials (no ward_id)
+        # Zone-wide officials
         for o in ZONE_OFFICIALS:
-            _add(o["name"], o["title"], o["level"],
-                 party=o.get("party"), phone=o.get("phone"), email=o.get("email"))
+            _add(o["name"], o["title"], o["level"], party=o.get("party"))
 
-        # Circle officials (no ward_id — shown zone-wide)
-        for o in CIRCLE_OFFICIALS:
-            _add(o["name"], o["title"], o["level"],
-                 phone=o.get("phone"), email=o.get("email"))
-
-        # Ward officials — look up ward_id from DB
+        # Ward officials
         wards_by_num = {w.ward_number: w for w in db.query(Ward).all()}
-
         for ward_num, info in WARD_OFFICIALS.items():
             ward = wards_by_num.get(ward_num)
             ward_id = ward.ward_id if ward else None
             ward_name = info["ward_name"]
 
-            corp_name, corp_phone = info["corporator"]
             _add(
-                corp_name,
+                info["corporator"],
                 f"Ward Corporator, Ward {ward_num} ({ward_name})",
                 "WARD",
-                phone=corp_phone,
                 ward_id=ward_id,
             )
-
-            san_name, san_phone = info["sanitation"]
             _add(
-                san_name,
+                info["sanitation"],
                 f"Sanitation Inspector, Ward {ward_num} ({ward_name})",
                 "WARD",
-                phone=san_phone,
                 ward_id=ward_id,
             )
 

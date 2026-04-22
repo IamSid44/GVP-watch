@@ -4,16 +4,7 @@ import type { Report } from "../../types";
 import { CATEGORY_LABELS } from "../../types";
 import SeverityBadge from "../shared/SeverityBadge";
 import StatusBadge from "../shared/StatusBadge";
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+import { timeAgoIST } from "../../utils/date";
 
 export default function ReportCard({ report }: { report: Report }) {
   return (
@@ -37,7 +28,7 @@ export default function ReportCard({ report }: { report: Report }) {
             <StatusBadge status={report.status} />
             <span className="text-xs text-gray-400 ml-auto flex items-center gap-1">
               <Clock size={12} />
-              {timeAgo(report.created_at)}
+              {timeAgoIST(report.created_at)}
             </span>
           </div>
           <p className="text-sm text-gray-700 dark:text-gray-300 truncate">

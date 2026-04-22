@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, useJsApiLoader, OverlayView } from "@react-google-maps/api";
 import type { ReportMapItem } from "../../types";
 import { SEVERITY_COLORS } from "../../types";
@@ -56,7 +56,7 @@ const BASE_MAP_OPTIONS: google.maps.MapOptions = {
   clickableIcons: false,
   restriction: {
     latLngBounds: SERILINGAMPALLY_BOUNDS,
-    strictBounds: true,
+    strictBounds: false,
   },
 };
 
@@ -64,6 +64,12 @@ interface Props {
   reports: ReportMapItem[];
   onMarkerClick?: (id: string) => void;
   wardBoundaries?: GeoJSON.FeatureCollection | null;
+}
+
+interface WardLabel {
+  lat: number;
+  lng: number;
+  text: string;
 }
 
 const SEVERITY_SIZE: Record<string, number> = {
@@ -107,6 +113,7 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
     const hoverStroke  = dark ? "#93c5fd" : "#2563eb";
     const hoverFill    = dark ? "#60a5fa" : "#3b82f6";
     const hoverFillOp  = dark ? 0.30 : 0.28;
+    const labelColor   = dark ? "#bfdbfe" : "#1e40af";
 
     wardBoundaries.features.forEach((feature) => {
       const geom = feature.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
@@ -126,42 +133,41 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
 
       if (!wardNum || !HIGHLIGHTED_WARDS.has(wardNum)) return;
 
+      // Compute centroid of the largest exterior ring for label placement
+      const rings: number[][][] =
+        geom.type === "Polygon"
+          ? geom.coordinates
+          : geom.coordinates.map((poly) => poly[0]);
+      const largestRing = rings.reduce((a, b) => (b.length > a.length ? b : a), rings[0]);
+
       const drawRing = (ring: number[][]) => {
         const path = ring.map(([lng, lat]) => ({ lat, lng }));
         const polygon = new google.maps.Polygon({
           paths: path,
           strokeColor: normalStroke,
           strokeOpacity: 1.0,
-          strokeWeight: 1,
+          strokeWeight: 2,
           fillColor: normalFill,
           fillOpacity: normalFillOp,
           map: mapRef.current!,
         });
         polygonsRef.current.push(polygon);
 
-        const label = wardLabel
-          ? `<div style="font-size:13px;font-weight:600;padding:2px 4px">Ward ${wardNum} · ${wardLabel}</div>`
-          : `<div style="font-size:13px;font-weight:600;padding:2px 4px">Ward ${wardNum}</div>`;
-        const infoWindow = new google.maps.InfoWindow({ content: label });
-
-        polygon.addListener("mouseover", (e: google.maps.PolyMouseEvent) => {
+        polygon.addListener("mouseover", () => {
           polygon.setOptions({
             strokeColor: hoverStroke,
-            strokeWeight: 2.5,
+            strokeWeight: 3.5,
             fillColor: hoverFill,
             fillOpacity: hoverFillOp,
           });
-          infoWindow.setPosition(e.latLng);
-          infoWindow.open(mapRef.current!);
         });
         polygon.addListener("mouseout", () => {
           polygon.setOptions({
             strokeColor: normalStroke,
-            strokeWeight: 1,
+            strokeWeight: 2,
             fillColor: normalFill,
             fillOpacity: normalFillOp,
           });
-          infoWindow.close();
         });
       };
 
@@ -172,6 +178,45 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
       }
     });
   }, [wardBoundaries, mapReady, dark]);
+
+  const wardLabels = useMemo<WardLabel[]>(() => {
+    if (!wardBoundaries) return [];
+
+    const result: WardLabel[] = [];
+    wardBoundaries.features.forEach((feature) => {
+      const geom = feature.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+      const raw = feature.properties as Record<string, unknown>;
+      let wardNum: number | null = null;
+      let wardLabel: string | null = null;
+
+      if (raw.ward_number != null) {
+        wardNum = Number(raw.ward_number);
+        wardLabel = (raw.ward_name as string) ?? null;
+      } else if (typeof raw.ward === "string") {
+        const parts = (raw.ward as string).split("-");
+        wardNum = parseInt(parts[0], 10);
+        wardLabel = parts.slice(1).join(" ").trim() || null;
+      }
+
+      if (!wardNum || !HIGHLIGHTED_WARDS.has(wardNum)) return;
+
+      const rings: number[][][] =
+        geom.type === "Polygon"
+          ? geom.coordinates
+          : geom.coordinates.map((poly) => poly[0]);
+      const largestRing = rings.reduce((a, b) => (b.length > a.length ? b : a), rings[0]);
+      const centLat = largestRing.reduce((s, c) => s + c[1], 0) / largestRing.length;
+      const centLng = largestRing.reduce((s, c) => s + c[0], 0) / largestRing.length;
+
+      result.push({
+        lat: centLat,
+        lng: centLng,
+        text: wardLabel ? `${wardNum} · ${wardLabel}` : `Ward ${wardNum}`,
+      });
+    });
+
+    return result;
+  }, [wardBoundaries]);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
@@ -239,6 +284,31 @@ export default function MapView({ reports, onMarkerClick, wardBoundaries }: Prop
           />
         )
       )}
+
+      {wardLabels.map((label) => (
+        <OverlayView
+          key={label.text}
+          position={{ lat: label.lat, lng: label.lng }}
+          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+        >
+          <div
+            style={{
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+              color: dark ? "#bfdbfe" : "#1e40af",
+              fontSize: "16px",
+              fontWeight: 800,
+              textShadow: dark
+                ? "0 1px 3px rgba(0,0,0,0.8)"
+                : "0 1px 2px rgba(255,255,255,0.9)",
+              zIndex: 999,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {label.text}
+          </div>
+        </OverlayView>
+      ))}
     </GoogleMap>
   );
 }

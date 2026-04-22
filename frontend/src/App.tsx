@@ -26,7 +26,7 @@ export default function App() {
           </Routes>
         </div>
         <footer className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-2 px-4 text-center text-xs text-gray-500 dark:text-gray-400 hidden md:block">
-          The collectors are not paid officially. Please donate to them if you wish to.
+          The collectors are not paid officially. Please support them by paying the nominal fee.
         </footer>
       </div>
     </DarkModeProvider>

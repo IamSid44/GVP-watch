@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { MapPin, BarChart3, Download, Shield, Plus, Sun, Moon } from "lucide-react";
 import { useDarkMode } from "../../context/DarkModeContext";
 
@@ -12,6 +13,19 @@ const NAV_ITEMS = [
 export default function Navbar() {
   const location = useLocation();
   const { dark, toggle } = useDarkMode();
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(
+    () => !!localStorage.getItem("gvp_admin_token")
+  );
+
+  useEffect(() => {
+    const syncAdminState = () => setIsAdminLoggedIn(!!localStorage.getItem("gvp_admin_token"));
+    window.addEventListener("storage", syncAdminState);
+    window.addEventListener("gvp-admin-auth-changed", syncAdminState);
+    return () => {
+      window.removeEventListener("storage", syncAdminState);
+      window.removeEventListener("gvp-admin-auth-changed", syncAdminState);
+    };
+  }, []);
 
   return (
     <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50 transition-colors">
@@ -51,14 +65,16 @@ export default function Navbar() {
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <Link
-              to="/submit"
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">Report GVP</span>
-              <span className="sm:hidden">Report</span>
-            </Link>
+            {!isAdminLoggedIn && (
+              <Link
+                to="/submit"
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">Report GVP</span>
+                <span className="sm:hidden">Report</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

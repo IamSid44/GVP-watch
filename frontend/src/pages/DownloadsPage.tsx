@@ -19,21 +19,21 @@ export default function DownloadsPage() {
   return (
     <div className="max-w-2xl mx-auto w-full p-4 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Downloads</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Downloads</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-300">
           Export report data as CSV for analysis
         </p>
       </div>
 
       {/* City-wide */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <FileText size={20} className="text-red-500" />
+          <div className="w-10 h-10 bg-red-50 dark:bg-red-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <FileText size={20} className="text-red-500 dark:text-red-300" />
           </div>
           <div className="flex-1">
-            <h2 className="font-medium text-gray-900">All Reports (CSV)</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="font-medium text-gray-900 dark:text-gray-100">All Reports (CSV)</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">
               Download all approved reports across all wards
             </p>
             <button
@@ -47,21 +47,21 @@ export default function DownloadsPage() {
       </div>
 
       {/* Per-ward */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <FileText size={20} className="text-blue-500" />
+          <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <FileText size={20} className="text-blue-500 dark:text-blue-300" />
           </div>
           <div className="flex-1">
-            <h2 className="font-medium text-gray-900">Ward-Specific (CSV)</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="font-medium text-gray-900 dark:text-gray-100">Ward-Specific (CSV)</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">
               Download reports for a specific ward
             </p>
             <div className="mt-3 flex items-center gap-2">
               <select
                 value={selectedWard}
                 onChange={(e) => setSelectedWard(e.target.value)}
-                className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                className="flex-1 p-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg text-sm"
               >
                 <option value="">Select a ward...</option>
                 {wards.map((w) => (

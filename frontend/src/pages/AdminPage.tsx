@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, Loader2, CheckCircle, XCircle, LogOut, CheckSquare, Upload, X, Camera } from "lucide-react";
+import { Shield, Loader2, CheckCircle, XCircle, LogOut, CheckSquare, Upload, X, Camera, Sun, Moon } from "lucide-react";
 import api from "../api/client";
 import type { Report } from "../types";
 import SeverityBadge from "../components/shared/SeverityBadge";
 import StatusBadge from "../components/shared/StatusBadge";
+import { useDarkMode } from "../context/DarkModeContext";
 
 export default function AdminPage() {
   const [token, setToken] = useState(localStorage.getItem("gvp_admin_token") || "");
@@ -17,6 +18,7 @@ export default function AdminPage() {
   const [resolving, setResolving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  const { dark, toggle } = useDarkMode();
 
   const isLoggedIn = !!token;
 
@@ -26,6 +28,7 @@ export default function AdminPage() {
       if (data.success) {
         setToken(data.token);
         localStorage.setItem("gvp_admin_token", data.token);
+        window.dispatchEvent(new Event("gvp-admin-auth-changed"));
         setLoginError("");
       }
     } catch {
@@ -36,6 +39,7 @@ export default function AdminPage() {
   const logout = () => {
     setToken("");
     localStorage.removeItem("gvp_admin_token");
+    window.dispatchEvent(new Event("gvp-admin-auth-changed"));
   };
 
   const { data: openReports = [], isLoading: openLoading } = useQuery({
@@ -113,11 +117,20 @@ export default function AdminPage() {
     return (
       <div className="max-w-sm mx-auto w-full p-4 pt-20">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield size={32} className="text-gray-400" />
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={toggle}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title={dark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} className="text-gray-400 dark:text-amber-300" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-amber-300">Admin Panel</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">
             Enter admin key to access moderation
           </p>
         </div>
@@ -128,14 +141,14 @@ export default function AdminPage() {
             onChange={(e) => setKeyInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && login()}
             placeholder="Admin key"
-            className="w-full p-3 border border-gray-300 rounded-xl text-sm"
+            className="w-full p-3 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-xl text-sm"
           />
           {loginError && (
             <p className="text-sm text-red-500">{loginError}</p>
           )}
           <button
             onClick={login}
-            className="w-full bg-gray-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-gray-800"
+            className="w-full bg-gray-900 dark:bg-amber-500 text-white dark:text-gray-950 py-3 rounded-xl text-sm font-medium hover:bg-gray-800 dark:hover:bg-amber-400"
           >
             Login
           </button>
@@ -150,23 +163,32 @@ export default function AdminPage() {
   return (
     <div className="max-w-3xl mx-auto w-full p-4 space-y-4 pb-20">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-        <button
-          onClick={logout}
-          className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-        >
-          <LogOut size={16} /> Logout
-        </button>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-amber-300">Admin Panel</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            className="p-2 rounded-lg text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {dark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button
+            onClick={logout}
+            className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-1"
+          >
+            <LogOut size={16} /> Logout
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border border-gray-200 rounded-xl overflow-hidden">
+      <div className="flex border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <button
           onClick={() => setActiveTab("open")}
           className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "open"
               ? "bg-gray-900 text-white"
-              : "text-gray-600 hover:bg-gray-50"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
           }`}
         >
           Open
@@ -176,7 +198,7 @@ export default function AdminPage() {
           className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "needs_verification"
               ? "bg-amber-500 text-white"
-              : "text-amber-600 hover:bg-amber-50"
+              : "text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
           }`}
         >
           Needs Verify
@@ -186,7 +208,7 @@ export default function AdminPage() {
           className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "pending"
               ? "bg-gray-900 text-white"
-              : "text-gray-600 hover:bg-gray-50"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
           }`}
         >
           Moderation
@@ -198,7 +220,7 @@ export default function AdminPage() {
           <Loader2 size={32} className="animate-spin text-gray-400" />
         </div>
       ) : reports.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-300">
           <CheckCircle size={48} className="mx-auto mb-3 text-green-400" />
           <p>
             {activeTab === "open"
@@ -208,11 +230,11 @@ export default function AdminPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">{reports.length} reports</p>
+          <p className="text-sm text-gray-500 dark:text-gray-300">{reports.length} reports</p>
           {reports.map((report) => (
             <div
               key={report.ticket_id}
-              className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"
             >
               <div className="flex flex-col">
                 <div className="flex">
@@ -231,11 +253,11 @@ export default function AdminPage() {
                         {report.ticket_id}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-1 line-clamp-2">
+                    <p className="text-sm text-gray-700 dark:text-gray-200 mb-1 line-clamp-2">
                       {report.description || report.category || "No description"}
                     </p>
                     {report.address && (
-                      <p className="text-xs text-gray-500 truncate">{report.address}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{report.address}</p>
                     )}
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {activeTab === "open" ? (
@@ -274,7 +296,7 @@ export default function AdminPage() {
                 {/* Show citizen's cleanup photo for needs_verification tab */}
                 {activeTab === "needs_verification" && (report as Report & { citizen_resolution_photo_url?: string }).citizen_resolution_photo_url && (
                   <div className="px-4 pb-4">
-                    <p className="text-xs text-amber-700 font-medium mb-1">Citizen's cleanup photo:</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium mb-1">Citizen's cleanup photo:</p>
                     <img
                       src={(report as Report & { citizen_resolution_photo_url?: string }).citizen_resolution_photo_url}
                       alt="Citizen cleanup"
@@ -291,15 +313,15 @@ export default function AdminPage() {
       {/* Resolve with photo modal */}
       {resolveModalTicketId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Upload Verification Photo</h2>
-              <button onClick={closeResolveModal} className="text-gray-400 hover:text-gray-600">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Upload Verification Photo</h2>
+              <button onClick={closeResolveModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <X size={20} />
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 Upload a photo showing the area has been cleaned up. This will be used to verify the resolution.
               </p>
 
@@ -320,11 +342,11 @@ export default function AdminPage() {
               ) : (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-40 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-400 hover:text-green-600 transition-colors"
+                  className="w-full h-40 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-300 hover:border-green-400 hover:text-green-600 transition-colors"
                 >
                   <Camera size={32} />
                   <span className="text-sm font-medium">Tap to upload photo</span>
-                  <span className="text-xs text-gray-400">JPG, PNG, HEIC accepted</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">JPG, PNG, HEIC accepted</span>
                 </button>
               )}
 
@@ -337,10 +359,10 @@ export default function AdminPage() {
                 onChange={onPhotoSelected}
               />
             </div>
-            <div className="flex gap-3 p-4 border-t border-gray-100">
+            <div className="flex gap-3 p-4 border-t border-gray-100 dark:border-gray-800">
               <button
                 onClick={closeResolveModal}
-                className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Cancel
               </button>

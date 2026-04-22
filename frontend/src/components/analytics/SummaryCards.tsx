@@ -3,11 +3,11 @@ import type { AnalyticsSummary } from "../../types";
 
 export default function SummaryCards({ data }: { data: AnalyticsSummary }) {
   const cards = [
-    { label: "Total Reports", value: data.total_reports, icon: FileText, color: "text-gray-700", bg: "bg-gray-50" },
-    { label: "Open", value: data.open_reports, icon: AlertCircle, color: "text-red-700", bg: "bg-red-50" },
-    { label: "Resolved", value: data.resolved_reports, icon: CheckCircle, color: "text-green-700", bg: "bg-green-50" },
-    { label: "Pending", value: data.pending_reports, icon: Clock, color: "text-amber-700", bg: "bg-amber-50" },
-    { label: "Resolution Rate", value: `${data.resolution_rate}%`, icon: TrendingUp, color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "Total Reports", value: data.total_reports, icon: FileText, color: "text-gray-700 dark:text-gray-200", bg: "bg-gray-50 dark:bg-gray-800" },
+    { label: "Open", value: data.open_reports, icon: AlertCircle, color: "text-red-700 dark:text-red-300", bg: "bg-red-50 dark:bg-red-900/30" },
+    { label: "Resolved", value: data.resolved_reports, icon: CheckCircle, color: "text-green-700 dark:text-green-300", bg: "bg-green-50 dark:bg-green-900/30" },
+    { label: "Pending", value: data.pending_reports, icon: Clock, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50 dark:bg-amber-900/30" },
+    { label: "Resolution Rate", value: `${data.resolution_rate}%`, icon: TrendingUp, color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-50 dark:bg-blue-900/30" },
   ];
 
   return (
